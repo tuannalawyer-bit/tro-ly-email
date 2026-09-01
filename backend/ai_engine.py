@@ -241,6 +241,23 @@ class AIEngine:
 
     def _require_key(self) -> None:
         if not self.is_ready:
+            import os
+            from paths import ENV_FILE
+            from dotenv import load_dotenv
+            if ENV_FILE.is_file():
+                load_dotenv(ENV_FILE, override=True)
+            k = os.getenv("GEMINI_API_KEY", "").strip()
+            if k:
+                self.api_key = k
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel(
+                    self.model_name, generation_config={"temperature": 0.7})
+                self.json_model = genai.GenerativeModel(
+                    self.model_name,
+                    generation_config={"temperature": 0.2,
+                                       "response_mime_type": "application/json"},
+                )
+        if not self.is_ready:
             raise AIEngineError("Chưa cấu hình API key Gemini. Mở Cài đặt để nhập khóa.")
 
     def _generate(self, model, contents, timeout: int = 90) -> str:

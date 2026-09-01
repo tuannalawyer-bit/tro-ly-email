@@ -10,7 +10,7 @@
        metadata đã cache, khiến nút ribbon không bao giờ xuất hiện. Đổi Id buộc Outlook
        coi đây là add-in hoàn toàn mới. -->
   <Id>0d0daf77-eba5-4a54-9569-c2fa18eac48c</Id>
-  <Version>2.1.0.0</Version>
+  <Version>2.1.1.0</Version>
   <ProviderName>Email Assistant</ProviderName>
   <DefaultLocale>vi-VN</DefaultLocale>
   <DisplayName DefaultValue="Trợ lý Email"/>

@@ -236,7 +236,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"success": True, "error": None, "data": {
                     "version": VERSION,
                     "model": GEMINI_MODEL,
-                    "api_key_configured": service.api.ai_engine.is_ready,
+                    "api_key_configured": service.api._get_engine().is_ready,
                     "knowledge": service.kb.status(),
                 }})
                 return

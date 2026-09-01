@@ -59,6 +59,18 @@ class EmailAssistantAPI:
         self.cache = ClassificationCache(CACHE_DIR)
         self.kb = KnowledgeBase(KNOWLEDGE_DIR, STYLE_PROFILES_DIR / "default.json")
 
+    def _get_engine(self) -> AIEngine:
+        """Đảm bảo ai_engine luôn có key mới nhất nếu .env được cập nhật sau khi khởi động."""
+        if not self.ai_engine.is_ready and ENV_FILE.is_file():
+            import os
+            from dotenv import load_dotenv
+            load_dotenv(ENV_FILE, override=True)
+            new_key = os.getenv("GEMINI_API_KEY", "").strip()
+            if new_key:
+                logger.info("Tự động nạp API key mới từ %s", ENV_FILE)
+                self.ai_engine = self._build_engine(new_key)
+        return self.ai_engine
+
     # ------------------------------------------------------------------ Outlook
 
     @_guard
@@ -115,7 +127,7 @@ class EmailAssistantAPI:
         thread = com_call(self.outlook.get_conversation_thread, entry_id)
         profile = self.style_analyzer.load_profile("default")
         subject, body = detail.get("subject", ""), detail.get("body", "")
-        html = self.ai_engine.generate_reply(
+        html = self._get_engine().generate_reply(
             detail, thread, instruction, profile,
             knowledge=self.kb.build_prompt_block(
                 detail.get("sender_email", ""), subject, body, email_type))
@@ -139,7 +151,7 @@ class EmailAssistantAPI:
 
         parsed = read_attachments(attachments)
         subject = email.get("subject", "")
-        html = self.ai_engine.generate_reply(
+        html = self._get_engine().generate_reply(
             email, [], instruction, self.kb.style_profile(),
             knowledge=self.kb.build_prompt_block(
                 email.get("sender_email", ""), subject, email["body"], email_type),
@@ -157,7 +169,7 @@ class EmailAssistantAPI:
 
     @_guard
     def refine_draft(self, draft_html: str, feedback: str) -> Dict:
-        return ok({"html_body": self.ai_engine.refine_draft(draft_html, feedback)})
+        return ok({"html_body": self._get_engine().refine_draft(draft_html, feedback)})
 
     @_guard
     def save_draft(self, entry_id: str, html_body: str,
@@ -181,7 +193,7 @@ class EmailAssistantAPI:
         pending = [e for e in emails if e.get("entry_id") not in cached]
 
         if pending:
-            fresh = self.ai_engine.classify_emails(pending)
+            fresh = self._get_engine().classify_emails(pending)
             self.cache.put_many(fresh)
             cached.update(fresh)
         return ok(cached)
@@ -245,9 +257,10 @@ class EmailAssistantAPI:
     @_guard
     def get_settings(self) -> Dict:
         profile = self.style_analyzer.load_profile("default")
+        engine = self._get_engine()
         return ok({
-            "api_key_configured": self.ai_engine.is_ready,
-            "model": self.ai_engine.model_name,
+            "api_key_configured": engine.is_ready,
+            "model": engine.model_name,
             "style_analyzed_at": (profile or {}).get("analyzed_at"),
         })
 
