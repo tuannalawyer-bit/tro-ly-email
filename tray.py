@@ -76,9 +76,13 @@ class BackendProcess:
         self._thread: Optional[threading.Thread] = None
 
     def is_port_busy(self) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(0.4)
-            return sock.connect_ex((BACKEND_HOST, self.port)) == 0
+        for host in ("127.0.0.1", "localhost", "::1"):
+            try:
+                with socket.create_connection((host, self.port), timeout=0.3):
+                    return True
+            except OSError:
+                pass
+        return False
 
     def is_running(self) -> bool:
         with self._lock:

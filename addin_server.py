@@ -23,6 +23,7 @@ import hmac
 import json
 import logging
 import secrets
+import socket
 import ssl
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,14 +37,14 @@ from backend.api import EmailAssistantAPI, fail
 from config import GEMINI_MODEL, VERSION
 from paths import ADDIN_RES_DIR, CERT_DIR, ENV_FILE
 
-HOST = "127.0.0.1"
+HOST = "::"
 PORT = 8765
 ADDIN_DIR = ADDIN_RES_DIR          # chỉ đọc: nằm trong gói khi đã đóng gói
 MAX_BODY_BYTES = 25 * 1024 * 1024
 
 ADDIN_TOKEN = secrets.token_urlsafe(32)
-ALLOWED_HOSTS = {f"localhost:{PORT}", f"127.0.0.1:{PORT}"}
-ALLOWED_ORIGINS = {f"https://localhost:{PORT}", f"https://127.0.0.1:{PORT}"}
+ALLOWED_HOSTS = {f"localhost:{PORT}", f"127.0.0.1:{PORT}", f"[::1]:{PORT}"}
+ALLOWED_ORIGINS = {f"https://localhost:{PORT}", f"https://127.0.0.1:{PORT}", f"https://[::1]:{PORT}"}
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -342,12 +343,19 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
     daemon_threads = True
     allow_reuse_address = False
 
     def __init__(self, server_address, RequestHandlerClass, ssl_context: Optional[ssl.SSLContext] = None):
         self.ssl_context = ssl_context
-        super().__init__(server_address, RequestHandlerClass)
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate=False)
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except (AttributeError, OSError):
+            pass
+        self.server_bind()
+        self.server_activate()
 
     def finish_request(self, request, client_address):
         if self.ssl_context:
