@@ -326,6 +326,11 @@ class AIEngine:
                     "GEMINI_MODEL trong tệp .env sang gemini-3.5-flash hoặc "
                     "gemini-3.1-flash-lite."
                 ) from e
+            if "401" in err_str or "ACCESS_TOKEN_TYPE_UNSUPPORTED" in err_str or "invalid authentication credentials" in err_str.lower():
+                raise AIEngineError(
+                    "Khóa API Gemini chưa đúng hoặc không hợp lệ (khóa Google AI Studio chuẩn bắt đầu bằng 'AIzaSy...'). "
+                    "Hãy mở Cài đặt (⚙️) hoặc sửa tệp .env để nhập khóa API Gemini từ https://aistudio.google.com/app/apikey"
+                ) from e
             raise AIEngineError(f"Gọi Gemini thất bại: {e}") from e
         text = getattr(resp, "text", None)
         if not text:

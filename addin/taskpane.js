@@ -94,22 +94,37 @@ const get = path => request(path);
 async function loadEmailTypes() {
   const sel = $('emailType');
   try {
-    const { types } = await get('/api/email-types');
+    const data = await get('/api/email-types');
+    const types = Array.isArray(data) ? data : (data && data.types ? data.types : []);
     if (!types || !types.length) {
       sel.disabled = true;
       $('typeHint').textContent =
         'Chưa có mẫu thư nào. Chạy XUAT_THU.bat rồi để Antigravity viết vào kien_thuc/loai_thu/.';
       return;
     }
+    sel.disabled = false;
+    sel.innerHTML = '';
+
+    // Mẫu mặc định: Thẩm định mặt bằng & mở điểm mới
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = 'tham-dinh-mat-bang';
+    defaultOpt.textContent = 'Thẩm định mặt bằng & mở điểm mới (Mặc định)';
+    sel.appendChild(defaultOpt);
+
+    const autoOpt = document.createElement('option');
+    autoOpt.value = '';
+    autoOpt.textContent = '✨ AI tự nhận diện theo nội dung email';
+    sel.appendChild(autoOpt);
+
     types.forEach(t => {
+      if (t.name === 'tham-dinh-mat-bang') return;
       const opt = document.createElement('option');
       opt.value = t.name;
       opt.textContent = t.title;
       sel.appendChild(opt);
     });
-    if (types.some(t => t.name === 'tham-dinh-mat-bang')) {
-      sel.value = 'tham-dinh-mat-bang';
-    }
+
+    sel.value = 'tham-dinh-mat-bang';
     $('typeHint').textContent = `${types.length} mẫu thư sẵn có.`;
   } catch (e) {
     sel.disabled = true;
