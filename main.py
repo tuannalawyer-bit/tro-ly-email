@@ -62,13 +62,29 @@ def claim_single_instance():
         return True
 
 
+def bring_existing_to_front() -> bool:
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, APP_NAME)
+        if hwnd:
+            user32.ShowWindow(hwnd, 9)       # SW_RESTORE
+            user32.SetForegroundWindow(hwnd)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def warn_already_running() -> None:
+    if bring_existing_to_front():
+        return
     try:
         import ctypes
         ctypes.windll.user32.MessageBoxW(
             None,
-            f"{APP_NAME} đang chạy sẵn ở khay hệ thống.\n"
-            "Bấm vào icon ở góc phải thanh tác vụ để mở lên.",
+            f"{APP_NAME} đang chạy ở khay hệ thống.\n"
+            "Bấm vào icon ở góc phải thanh tác vụ (gần đồng hồ) để mở lên.",
             APP_NAME, 0x40)             # MB_ICONINFORMATION
     except Exception:
         logger.warning("%s đang chạy sẵn.", APP_NAME)
