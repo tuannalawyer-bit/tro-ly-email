@@ -153,46 +153,41 @@ def main() -> None:
         raise FileNotFoundError(f"Không tìm thấy giao diện tại: {frontend_path}")
 
     global _instance_lock
-    # Bản đóng gói mặc định chạy ngầm ở khay; chạy từ mã nguồn thì giữ nếp cũ.
-    tray_mode = "--tray" in sys.argv or (FROZEN and "--cua-so" not in sys.argv)
-    if tray_mode:
-        _instance_lock = claim_single_instance()
-        if _instance_lock is None:
-            warn_already_running()
-            return
+    _instance_lock = claim_single_instance()
+    if _instance_lock is None:
+        warn_already_running()
+        return
+
+    # Chỉ ẩn cửa sổ khi khởi động cùng Windows với tham số --tray
+    start_hidden = "--tray" in sys.argv
 
     api = EmailAssistantAPI()
     window = webview.create_window(
         title=APP_NAME,
-        url=str(frontend_path),
+        url=frontend_path.as_uri(),
         js_api=api,
         width=1400,
         height=900,
         min_size=(1100, 700),
         background_color="#0a0a1a",
-        hidden=tray_mode,
+        hidden=start_hidden,
     )
 
-    tray = None
-    if tray_mode:
-        from tray import TrayApp
-        tray = TrayApp(window)
-        # Khởi động backend add-in ngay lập tức, không chờ sự kiện cửa sổ
-        tray.backend.start()
-        # before_show chạy ĐỒNG BỘ trên GUI thread và window.native đã sẵn sàng, nên
-        # NotifyIcon dùng luôn vòng lặp thông điệp của pywebview.
-        window.events.before_show += tray.attach
-        window.events.loaded += tray.attach
-        window.events.closing += tray.on_closing
+    from tray import TrayApp
+    tray = TrayApp(window)
+    # Khởi động backend add-in ngay lập tức
+    tray.backend.start()
+    window.events.before_show += tray.attach
+    window.events.loaded += tray.attach
+    window.events.closing += tray.on_closing
 
     debug = os.getenv("DEBUG", "").strip() in ("1", "true", "True")
-    logger.info("Khởi động ứng dụng (debug=%s, khay=%s)...", debug, tray_mode)
+    logger.info("Khởi động ứng dụng (debug=%s, start_hidden=%s)...", debug, start_hidden)
     try:
-        webview.start(tray.attach if tray else None, debug=debug)
+        webview.start(tray.attach, debug=debug)
     finally:
-        if tray:
-            tray.backend.stop()
-            tray.dispose()
+        tray.backend.stop()
+        tray.dispose()
 
 
 if __name__ == "__main__":

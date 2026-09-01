@@ -344,6 +344,14 @@ class TrayApp:
 
     def show_window(self) -> None:
         self.window.show()
+        if getattr(self.window, "native", None):
+            try:
+                native = self.window.native
+                native.WindowState = WinForms.FormWindowState.Normal
+                native.BringToFront()
+                native.Activate()
+            except Exception:
+                pass
 
     def hide_window(self) -> None:
         self.window.hide()
