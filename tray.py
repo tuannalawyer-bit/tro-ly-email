@@ -65,51 +65,38 @@ def load_icon(path: Path) -> Optional[Icon]:
 # --------------------------------------------------------------- backend add-in
 
 class BackendProcess:
-    """Chạy backend add-in.
-
-    Hai chế độ, vì cùng một cách làm không hợp cho cả hai:
-
-    - **Chạy từ mã nguồn**: tiến trình con `pythonw.exe addin_server.py`. Giữ
-      addin_server.py nguyên vẹn, khởi động lại chỉ là kill rồi spawn, lỗi trong máy chủ
-      HTTP không kéo sập giao diện.
-    - **Đã đóng gói**: thread trong chính tiến trình này. Gọi lại `sys.executable` lúc
-      này nghĩa là bung nén toàn bộ gói lần thứ hai — tốn gấp đôi bộ nhớ lẫn thời gian.
-    """
+    """Chạy backend add-in."""
 
     def __init__(self, port: int = BACKEND_PORT) -> None:
         self.port = port
+        self._lock = threading.Lock()
         self._proc: Optional[subprocess.Popen] = None
         self._log = None
         self._server = None                    # chế độ đóng gói: đối tượng Server
         self._thread: Optional[threading.Thread] = None
 
     def is_port_busy(self) -> bool:
-        """KẾT NỐI THỬ, không bind.
-
-        addin_server.py đặt allow_reuse_address = True; trên Windows cờ đó cho phép
-        tiến trình thứ hai chiếm cùng cổng — nó vẫn in banner như đã khởi động thành
-        công trong khi tiến trình cũ mới là bên trả lời request. Bind thành công vì
-        thế KHÔNG chứng minh được cổng đang rảnh.
-        """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(0.4)
             return sock.connect_ex((BACKEND_HOST, self.port)) == 0
 
     def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        with self._lock:
+            return self._thread is not None and self._thread.is_alive()
 
     def start(self) -> str:
         """Trả thông báo lỗi cho người dùng; chuỗi rỗng nghĩa là đã khởi động."""
-        if self.is_running():
-            return ""
-        if self.is_port_busy():
-            return (f"Cổng {self.port} đang có tiến trình khác chiếm — có thể backend "
-                    f"đang chạy sẵn ở cửa sổ khác. Đóng nó rồi thử lại.")
-        if not (CERT_DIR / "localhost.crt").is_file():
-            return "Thiếu chứng chỉ. Chạy lại phần thiết lập để sinh chứng chỉ."
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return ""
+            if self.is_port_busy():
+                logger.info("Cổng %s đang được phục vụ.", self.port)
+                return ""
+            if not (CERT_DIR / "localhost.crt").is_file():
+                return "Thiếu chứng chỉ. Chạy lại phần thiết lập để sinh chứng chỉ."
 
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        return self._start_thread()
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            return self._start_thread()
 
     def _start_thread(self) -> str:
         try:
@@ -117,6 +104,12 @@ class BackendProcess:
             self._server = create_server()
         except SystemExit as e:                # _build_ssl_context ném khi thiếu cert
             return str(e).strip() or "Không dựng được backend."
+        except OSError as e:
+            if getattr(e, "winerror", None) == 10048 or "10048" in str(e):
+                logger.info("Cổng %s đã được tiến trình khác chiếm, sử dụng sẵn.", self.port)
+                return ""
+            logger.exception("Không dựng được backend add-in")
+            return f"Không khởi động được backend: {e}"
         except Exception as e:
             logger.exception("Không dựng được backend add-in")
             return f"Không khởi động được backend: {e}"
@@ -144,24 +137,25 @@ class BackendProcess:
         return ""
 
     def stop(self) -> None:
-        if self._server is not None:
-            logger.info("Đang dừng backend add-in (thread nội bộ).")
-            try:
-                self._server.shutdown()
-                self._server.server_close()
-            except Exception:
-                logger.exception("Lỗi khi dừng backend")
-            self._server = None
-            self._thread = None
-        if self._proc is not None and self._proc.poll() is None:
-            logger.info("Đang dừng backend add-in (PID %s).", self._proc.pid)
-            self._proc.terminate()
-            try:
-                self._proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
-        self._proc = None
-        self._close_log()
+        with self._lock:
+            if self._server is not None:
+                logger.info("Đang dừng backend add-in (thread nội bộ).")
+                try:
+                    self._server.shutdown()
+                    self._server.server_close()
+                except Exception:
+                    logger.exception("Lỗi khi dừng backend")
+                self._server = None
+                self._thread = None
+            if self._proc is not None and self._proc.poll() is None:
+                logger.info("Đang dừng backend add-in (PID %s).", self._proc.pid)
+                self._proc.terminate()
+                try:
+                    self._proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._proc.kill()
+            self._proc = None
+            self._close_log()
 
     def restart(self) -> str:
         self.stop()
@@ -269,7 +263,6 @@ class TrayApp:
         self._status_item = None
         self._toggle_item = None
         self._autostart_item = None
-        self._autostart_backend()
 
     # ------------------------------------------------------------- dựng menu
 
@@ -280,30 +273,6 @@ class TrayApp:
                 self._build()
         except Exception:
             logger.exception("Không dựng được icon khay; ứng dụng vẫn chạy bình thường")
-
-    def _autostart_backend(self) -> None:
-        """Bật backend ngay lúc khởi động thay vì bắt người dùng tự bấm trong menu.
-
-        Không có backend thì nút trong Outlook chỉ báo "can't load the add-in ... check
-        your network connectivity" — người dùng không tài nào đoán ra là phải mở menu
-        khay. Cả v1.9.0 lẫn v2.0.0 đều thiếu chỗ này.
-
-        Chạy nền vì start() mất khoảng 3 giây (dựng SSL context, nạp addin_server); chặn
-        GUI thread ở before_show thì icon khay lẫn cửa sổ đều hiện chậm đúng ngần ấy.
-        """
-        def work():
-            # Backend do CHAY_ADDIN_BACKEND.bat hay bản khác chạy sẵn: để yên, đừng
-            # tranh cổng và cũng đừng doạ người dùng bằng cảnh báo.
-            if self.backend.is_port_busy():
-                logger.info("Cổng %s đã có tiến trình khác phục vụ, không bật thêm.",
-                            self.backend.port)
-                return
-            error = self.backend.start()
-            if error:
-                logger.warning("Không tự bật được backend add-in: %s", error)
-                self._notify(f"Add-in Outlook sẽ chưa dùng được. {error}")
-
-        threading.Thread(target=work, name="backend-tu-bat", daemon=True).start()
 
     def _build(self) -> None:
         menu = WinForms.ContextMenuStrip()

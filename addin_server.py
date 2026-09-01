@@ -345,6 +345,18 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
+    def __init__(self, server_address, RequestHandlerClass, ssl_context: Optional[ssl.SSLContext] = None):
+        self.ssl_context = ssl_context
+        super().__init__(server_address, RequestHandlerClass)
+
+    def finish_request(self, request, client_address):
+        if self.ssl_context:
+            try:
+                request = self.ssl_context.wrap_socket(request, server_side=True)
+            except (ssl.SSLError, OSError):
+                return
+        super().finish_request(request, client_address)
+
 
 def _build_ssl_context() -> ssl.SSLContext:
     cert_file = CERT_DIR / "localhost.crt"
@@ -368,8 +380,7 @@ def create_server() -> Server:
     context = _build_ssl_context()          # dừng hẳn trước khi làm gì khác nếu thiếu cert
     service = AddinService()
 
-    server = Server((HOST, PORT), Handler)
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    server = Server((HOST, PORT), Handler, ssl_context=context)
     return server
 
 
