@@ -92,3 +92,4 @@
 Hoàn thiện bộ cài đặt tự động và sửa lỗi cấu hình,"Chuẩn hóa lưu khóa API kèm model gemini-3.1-flash-lite, cập nhật dong_goi.py gom trọn gói vào BanGiao, nghiệm thu cài đặt tự động 100%",2.1.1,01-09-2026 10:18:00
 Tự động nạp lại API key động từ .env,Thêm _get_engine và fallback nạp lại key trực tiếp trong _require_key khi .env thay đổi mà không cần khởi động lại app,2.1.1,01-09-2026 11:00:00
 Nâng cấp model Gemini sang 3.5 Flash Lite,Cập nhật cấu hình mặc định và toàn bộ hệ thống sang gemini-3.5-flash-lite để tăng tốc độ soạn thư thêm 38%,2.1.1,01-09-2026 11:55:00
+Dong bo day du bo quy tac va thu mau,Dong bo toan bo 16 quy tac theo loai thu va thu vien xuat thu mau vao ma nguon va bo ban giao,2.1.1,01-09-2026 12:00:00
