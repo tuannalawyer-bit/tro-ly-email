@@ -5,14 +5,16 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from config import CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
 
 class ClassificationCache:
-    def __init__(self, cache_dir, max_entries: int = 2000) -> None:
-        self.path = Path(cache_dir) / "classifications.json"
+    def __init__(self, cache_dir: Optional[Path] = None, max_entries: int = 2000) -> None:
+        self.path = (Path(cache_dir) if cache_dir is not None else CACHE_DIR) / "classifications.json"
         self.max_entries = max_entries
         self._data: Dict[str, Dict] = self._load()
 

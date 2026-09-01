@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if target.name == "taskpane.html":
-            html = target.read_text(encoding="utf-8").replace("{{ADDIN_TOKEN}}", ADDIN_TOKEN)
+            html = target.read_text(encoding="utf-8").replace("{{ADDIN_TOKEN}}", ADDIN_TOKEN).replace("{{VERSION}}", VERSION)
             self._send(200, html.encode("utf-8"), CONTENT_TYPES[".html"],
                        {"Cache-Control": "no-store"})   # đừng để WebView2 ghi token ra đĩa
             return
@@ -301,6 +301,14 @@ class Handler(BaseHTTPRequestHandler):
                         payload.get("draft_html", ""), payload.get("feedback", "")))
                 return
 
+            if path == "/api/open-reply-all":
+                self._json(200, service.api.open_reply_all(
+                    html_body=payload.get("html_body", ""),
+                    subject=payload.get("subject", ""),
+                    sender_email=payload.get("sender_email", ""),
+                ))
+                return
+
             if path == "/api/classify-email":
                 email = payload.get("email") or {}
                 with service.ai_lock:
@@ -335,7 +343,18 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    allow_reuse_address = False
+
+    def __init__(self, server_address, RequestHandlerClass, ssl_context: Optional[ssl.SSLContext] = None):
+        self.ssl_context = ssl_context
+        super().__init__(server_address, RequestHandlerClass)
+
+    def get_request(self):
+        newsocket, fromaddr = self.socket.accept()
+        if self.ssl_context:
+            connstream = self.ssl_context.wrap_socket(newsocket, server_side=True)
+            return connstream, fromaddr
+        return newsocket, fromaddr
 
 
 def _build_ssl_context() -> ssl.SSLContext:
@@ -354,18 +373,13 @@ def _build_ssl_context() -> ssl.SSLContext:
 
 
 def create_server() -> Server:
-    """Dựng server đã bọc TLS, chưa chạy.
-
-    Tách khỏi main() để bản đóng gói chạy được backend ngay trong tiến trình bằng một
-    thread: gọi lại chính exe onefile sẽ bung nén toàn bộ gói lần thứ hai.
-    """
+    """Dựng server đã bọc TLS, chưa chạy."""
     global service
     load_dotenv(ENV_FILE if ENV_FILE.is_file() else None)
     context = _build_ssl_context()          # dừng hẳn trước khi làm gì khác nếu thiếu cert
     service = AddinService()
 
-    server = Server((HOST, PORT), Handler)
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    server = Server((HOST, PORT), Handler, ssl_context=context)
     return server
 
 

@@ -55,8 +55,14 @@ class AppController {
             if (res?.success) {
                 document.getElementById('api-key-status').textContent =
                     res.data.api_key_configured
-                        ? `✅ Đã cấu hình (model: ${res.data.model})`
-                        : '⚠️ Chưa cấu hình API key';
+                        ? `✅ Đã cấu hình Gemini (model: ${res.data.model})`
+                        : '⚠️ Chưa cấu hình Gemini API key';
+                const serperStatus = document.getElementById('serper-key-status');
+                if (serperStatus) {
+                    serperStatus.textContent = res.data.serper_key_configured
+                        ? '✅ Đã kích hoạt tìm kiếm Google Search'
+                        : '⚠️ Chưa có khóa tìm kiếm (soạn thư sẽ không gắn link thực tế)';
+                }
                 document.getElementById('style-status').textContent =
                     res.data.style_analyzed_at
                         ? `Lần phân tích gần nhất: ${window.Utils.formatDate(res.data.style_analyzed_at)}`
@@ -70,13 +76,14 @@ class AppController {
 
         document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
             const apiKey = document.getElementById('api-key-input')?.value;
-            if (apiKey && window.pywebview) {
+            const serperKey = document.getElementById('serper-key-input')?.value;
+            if ((apiKey || serperKey) && window.pywebview) {
                 try {
-                    const result = await window.pywebview.api.save_api_key(apiKey);
+                    const result = await window.pywebview.api.save_api_key(apiKey, serperKey);
                     if (result && result.success) {
-                        window.Utils.showToast('Đã lưu API key thành công', 'success');
+                        window.Utils.showToast('Đã lưu cấu hình API thành công', 'success');
                     } else {
-                        window.Utils.showToast('Lỗi lưu API key: ' + (result?.error || ''), 'error');
+                        window.Utils.showToast('Lỗi lưu API: ' + (result?.error || ''), 'error');
                     }
                 } catch (e) {
                     window.Utils.showToast('Lỗi: ' + e.message, 'error');
@@ -191,7 +198,7 @@ class AppController {
         }
     }
 
-    async generateDraft(instruction, replyAll, emailType = '') {
+    async generateDraft(instruction, replyAll = true, emailType = '') {
         if (!this.state.currentEmailId) return;
         if (!window.pywebview) return;
 
@@ -201,7 +208,7 @@ class AppController {
             const result = await window.pywebview.api.generate_reply(
                 this.state.currentEmailId,
                 instruction,
-                replyAll,
+                replyAll !== false,
                 emailType
             );
 

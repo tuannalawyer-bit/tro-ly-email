@@ -17,7 +17,7 @@ class EmailViewer {
 
     bindEvents() {
         document.getElementById('btn-ai-reply')?.addEventListener('click',
-            () => window.DraftEditorUI?.showDraftPanel(false));
+            () => window.DraftEditorUI?.showDraftPanel(true));
         document.getElementById('btn-ai-reply-all')?.addEventListener('click',
             () => window.DraftEditorUI?.showDraftPanel(true));
     }

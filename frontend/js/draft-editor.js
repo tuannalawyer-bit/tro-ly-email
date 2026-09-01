@@ -13,7 +13,7 @@ class DraftEditor {
         this.typeSelect = document.getElementById('ai-email-type');
         this.typeHint = document.getElementById('ai-type-hint');
 
-        this.isReplyAll = false;
+        this.isReplyAll = true;
         this.typesLoaded = false;
 
         this.bindEvents();
@@ -38,6 +38,9 @@ class DraftEditor {
                 opt.value = t.name;
                 opt.textContent = t.title;
                 this.typeSelect.appendChild(opt);
+            }
+            if (types.some(t => t.name === 'tham-dinh-mat-bang')) {
+                this.typeSelect.value = 'tham-dinh-mat-bang';
             }
             this.typeHint.textContent = `${types.length} mẫu thư sẵn có.`;
         } catch (e) {
@@ -77,7 +80,7 @@ class DraftEditor {
         });
     }
 
-    showDraftPanel(isReplyAll = false) {
+    showDraftPanel(isReplyAll = true) {
         this.isReplyAll = isReplyAll;
         this.panel.classList.remove('hidden');
         this.panel.style.animation = 'slideIn 0.3s ease forwards';

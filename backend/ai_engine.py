@@ -186,6 +186,21 @@ def _format_email_html(html: str, font_family: str, font_size: str,
 
     _paragraphize(soup)
 
+    _sig_re = re.compile(
+        r"^(?:trân trọng|kính thư|thân ái|thanks\s*(?:&|and)?\s*regards|best\s*regards|regards|cảm ơn|kstt|thân mến|chúc anh/chị)\b",
+        re.IGNORECASE,
+    )
+    while True:
+        nodes = [tag for tag in soup.find_all(["p", "div", "li"]) if tag.get_text(strip=True)]
+        if not nodes:
+            break
+        last_block = nodes[-1]
+        text = last_block.get_text(strip=True)
+        if _sig_re.search(text) or (len(text) < 50 and any(kw in text.lower() for kw in ("trân trọng", "thanks &", "best regards", "kính thư", "kstt"))):
+            last_block.decompose()
+        else:
+            break
+
     for tag in soup.find_all(list(_TAG_BASE_STYLE)):
         # Hợp nhất theo thuộc tính; style của model ghi đè mặc định của ta.
         tag["style"] = _merge_style(_TAG_BASE_STYLE[tag.name], tag.get("style") or "")
@@ -323,34 +338,41 @@ class AIEngine:
     # nhiều hồ sơ con làm LLM trừu tượng hoá mất chi tiết, biến "Dear CH," thành
     # "Dear [Name],", và càng nhiều dữ liệu thì kết quả càng nhạt.
 
-    # ------------------------------------------------------------------ soạn thư
-
-    def generate_reply(self, original_email: Dict, conversation_thread: List[Dict],
-                       user_instruction: str, style_profile: Optional[Dict] = None,
+    def generate_reply(self, original_email: Optional[Dict] = None,
+                       conversation_thread: Optional[List[Dict]] = None,
+                       user_instruction: str = "",
+                       style_profile: Optional[Dict] = None,
                        *,
+                       email_data: Optional[Dict] = None,
+                       thread: Optional[List[Dict]] = None,
+                       instruction: str = "",
                        knowledge: str = "",
                        attachment_text: str = "",
                        attachment_blobs: Optional[List[Dict]] = None,
                        me: Optional[Dict] = None,
                        timeout: int = 90) -> str:
         self._require_key()
+        email_obj = original_email if original_email is not None else (email_data or {})
+        thread_obj = conversation_thread if conversation_thread is not None else (thread or [])
+        instr_str = user_instruction or instruction or ""
+
         prompt = f"""Bạn là trợ lý soạn email. Hãy viết nội dung thư phản hồi.
 
 ## Người viết thư trả lời (chính là bạn)
 {self._format_me(me)}
 
 ## Email cần trả lời
-Người gửi: {original_email.get('sender_name', '')} <{original_email.get('sender_email', '')}>
-Chủ đề: {original_email.get('subject', '')}
+Người gửi: {email_obj.get('sender_name', '')} <{email_obj.get('sender_email', '')}>
+Chủ đề: {email_obj.get('subject', '')}
 Nội dung:
-{(original_email.get('body') or '')[:4000]}
+{(email_obj.get('body') or '')[:4000]}
 
 ## Lịch sử hội thoại
-{self._format_thread(conversation_thread) if conversation_thread
- else (original_email.get('quoted_tail') or '(Không có)')[:3000]}
+{self._format_thread(thread_obj) if thread_obj
+ else (email_obj.get('quoted_tail') or '(Không có)')[:3000]}
 
 ## Chỉ dẫn của người dùng
-{user_instruction}
+{instr_str}
 
 ## Phong cách bắt buộc tuân theo
 {self._format_style(style_profile)}

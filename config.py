@@ -9,7 +9,7 @@ from paths import DATA_ROOT, ENV_FILE, RES_DIR
 load_dotenv(ENV_FILE if ENV_FILE.is_file() else None)
 
 APP_NAME = "Email Assistant"
-VERSION = "2.1.1"
+VERSION = "2.3.9"
 
 # BASE_DIR giữ lại làm bí danh của DATA_ROOT cho mã cũ; chỗ nào cần tài nguyên chỉ đọc
 # (frontend/, addin/, kien_thuc_mau/) thì phải dùng RES_DIR.

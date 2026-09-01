@@ -117,6 +117,15 @@ def make_handoff(setup: Path) -> Path:
         shutil.copy2(ROOT / "addin" / "manifest.xml", out / "manifest.xml")
     if (ROOT / "kien_thuc_mau").is_dir():
         shutil.copytree(ROOT / "kien_thuc_mau", out / "kien_thuc", dirs_exist_ok=True)
+    if (ROOT / ".env").is_file():
+        shutil.copy2(ROOT / ".env", out / ".env")
+    if (ROOT / "XUAT_THU.bat").is_file():
+        shutil.copy2(ROOT / "XUAT_THU.bat", out / "XUAT_THU.bat")
+
+    root_bg = ROOT / "BanGiao"
+    if root_bg.exists():
+        shutil.rmtree(root_bg)
+    shutil.copytree(out, root_bg, dirs_exist_ok=True)
     return out
 
 

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .style_stats import strip_accents
+from config import KNOWLEDGE_DIR, STYLE_PROFILES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +114,10 @@ def normalize_learned(raw: Optional[Dict]) -> Optional[Dict]:
 
 
 class KnowledgeBase:
-    def __init__(self, md_dir: Path, learned_path: Path,
+    def __init__(self, md_dir: Optional[Path] = None, learned_path: Optional[Path] = None,
                  max_chars: int = DEFAULT_MAX_CHARS) -> None:
-        self.md_dir = Path(md_dir)
-        self.learned_path = Path(learned_path)
+        self.md_dir = Path(md_dir) if md_dir is not None else KNOWLEDGE_DIR
+        self.learned_path = Path(learned_path) if learned_path is not None else (STYLE_PROFILES_DIR / "current_profile.json")
         self.max_chars = max_chars
         self._docs: Dict[str, str] = {}
         self._types: Dict[str, Dict] = {}      # {tên loại: {text, keywords}}

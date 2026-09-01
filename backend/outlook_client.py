@@ -413,6 +413,91 @@ class OutlookClient:
             logger.error("Lỗi tạo thư nháp: %s", e)
             return {}
 
+    def open_reply_all_in_outlook(self, html_body: str = "", subject: str = "",
+                                  sender_email: str = "") -> Dict:
+        """Mở cửa sổ soạn thư Trả lời tất cả (Reply All) trực tiếp trong Outlook qua COM."""
+        if not self._ensure():
+            return {"success": False, "error": "Không kết nối được Outlook COM."}
+
+        item = None
+
+        # 1. Thử lấy từ ActiveInspector
+        try:
+            insp = self.app.ActiveInspector
+            if insp and getattr(insp, "CurrentItem", None):
+                c = insp.CurrentItem
+                if getattr(c, "Class", 0) == OL_MAIL_ITEM:
+                    item = c
+        except Exception:
+            pass
+
+        # 2. Thử lấy từ ActiveExplorer
+        if not item:
+            try:
+                exp = self.app.ActiveExplorer
+                if exp and exp.Selection and exp.Selection.Count > 0:
+                    s = exp.Selection.Item(1)
+                    if getattr(s, "Class", 0) == OL_MAIL_ITEM:
+                        item = s
+            except Exception:
+                pass
+
+        # 3. Thử duyệt qua các Explorers khác
+        if not item:
+            try:
+                for i in range(1, self.app.Explorers.Count + 1):
+                    e = self.app.Explorers.Item(i)
+                    if e and e.Selection and e.Selection.Count > 0:
+                        s = e.Selection.Item(1)
+                        if getattr(s, "Class", 0) == OL_MAIL_ITEM:
+                            item = s
+                            break
+            except Exception:
+                pass
+
+        # 4. Nếu chưa tìm thấy và có subject, tìm trong Inbox / Sent
+        if not item and subject:
+            clean_subj = subject.strip()
+            for prefix in ("Re: ", "RE: ", "Fwd: ", "FW: "):
+                while clean_subj.startswith(prefix):
+                    clean_subj = clean_subj[len(prefix):].strip()
+
+            for fcode in (OL_FOLDER_INBOX, OL_FOLDER_SENT):
+                try:
+                    folder = self.namespace.GetDefaultFolder(fcode)
+                    items = folder.Items
+                    items.Sort("[ReceivedTime]", True)
+                    count = min(items.Count, 50)
+                    for idx in range(1, count + 1):
+                        m = items.Item(idx)
+                        if getattr(m, "Class", 0) != OL_MAIL_ITEM:
+                            continue
+                        s_subj = getattr(m, "Subject", "") or ""
+                        if clean_subj.lower() in s_subj.lower() or s_subj.lower() in clean_subj.lower():
+                            item = m
+                            break
+                    if item:
+                        break
+                except Exception:
+                    pass
+
+        if not item:
+            return {"success": False, "error": "Không tìm thấy email đang chọn trong Outlook."}
+
+        try:
+            reply = item.ReplyAll()
+            original = reply.HTMLBody or ""
+            m = _BODY_TAG_RE.search(original)
+            if m:
+                reply.HTMLBody = original[:m.end()] + html_body + "<br>" + original[m.end():]
+            else:
+                reply.HTMLBody = html_body + "<br><br>" + original
+            reply.Display()
+            return {"success": True, "subject": getattr(reply, "Subject", "") or ""}
+        except Exception as e:
+            logger.error("Lỗi mở Reply All trong Outlook COM: %s", e)
+            return {"success": False, "error": str(e)}
+
     def get_sent_emails_for_style(self, limit: int = 0) -> List[Dict]:
         """Lấy NỘI DUNG ĐẦY ĐỦ thư đã gửi để phân tích văn phong (sửa lỗi L2).
 
