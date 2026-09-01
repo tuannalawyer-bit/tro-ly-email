@@ -41,12 +41,13 @@ def _guard(fn: Callable) -> Callable:
 
 
 class EmailAssistantAPI:
-    def _build_engine(self, key: str) -> AIEngine:
+    def _build_engine(self, key: str, model_name: str = "") -> AIEngine:
         from config import (DRAFT_FONT_FAMILY, DRAFT_FONT_SIZE,
                             DRAFT_TEXT_COLOR, GEMINI_MODEL)
+        target_model = model_name or GEMINI_MODEL or "gemini-3.5-flash-lite"
         return AIEngine(
             api_key=key,
-            model_name=GEMINI_MODEL,
+            model_name=target_model,
             font_family=DRAFT_FONT_FAMILY,
             font_size=DRAFT_FONT_SIZE,
             text_color=DRAFT_TEXT_COLOR,
@@ -61,13 +62,19 @@ class EmailAssistantAPI:
         self.classifier_cache = ClassificationCache()
 
     def _get_engine(self) -> AIEngine:
-        if not self.ai_engine.is_ready:
-            from dotenv import load_dotenv
-            from paths import ENV_FILE
-            load_dotenv(ENV_FILE if ENV_FILE.is_file() else None, override=True)
-            key = os.getenv("GEMINI_API_KEY", "")
-            if key:
-                self.ai_engine = self._build_engine(key)
+        from dotenv import load_dotenv
+        from paths import ENV_FILE
+        if ENV_FILE.is_file():
+            load_dotenv(ENV_FILE, override=True)
+        key = os.getenv("GEMINI_API_KEY", "").strip()
+        model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+        if (
+            self.ai_engine is None
+            or not self.ai_engine.is_ready
+            or key != getattr(self.ai_engine, "api_key", "")
+            or model != getattr(self.ai_engine, "model_name", "")
+        ):
+            self.ai_engine = self._build_engine(key, model_name=model)
         return self.ai_engine
 
     # ------------------------------------------------------------------ outlook
