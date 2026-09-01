@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+certs/
+.env
+data/
+.backups/
+# Kho tri thức thật chứa thông tin cá nhân và nội bộ công ty.
+# Bản mẫu dùng chung nằm ở kien_thuc_mau/ và ĐƯỢC commit.
+kien_thuc/
+# Thư đã gửi xuất ra để phân tích — toàn văn thư công việc thật.
+xuat_thu/
+# Kết quả đóng gói và bản manifest sinh ra lúc thiết lập.
+dist/
+build/
+/manifest.xml
+# Tệp nháp và tư liệu thử nghiệm: chứa toàn văn thư công việc thật, tuyệt đối không commit.
+scratch/
+*.msg
+real_desktop_screen.png

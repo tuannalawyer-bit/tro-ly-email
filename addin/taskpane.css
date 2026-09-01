@@ -1,0 +1,162 @@
+:root {
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #e8e8f0;
+  background: #0a0a1a;
+  --accent: linear-gradient(135deg, #7c5cfc, #00d4aa);
+  --line: #34345a;
+  --panel: #15152a;
+  --sunken: #0e0e20;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 14px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+h1 { font-size: 18px; margin: 0; flex: 1; }
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge.cao      { background: #4a1230; color: #ff9ec2; }
+.badge.trungbinh{ background: #3a3410; color: #ffdf85; }
+.badge.thap     { background: #14303a; color: #8fd8ea; }
+
+.muted {
+  color: #aaaaca;
+  font-size: 13px;
+  margin: 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.muted.sub { font-size: 12px; color: #8a8aae; }
+
+.lbl {
+  display: block;
+  margin: 14px 0 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c8c8df;
+}
+.lbl .muted { display: inline; font-size: 11px; font-weight: 400; }
+
+textarea, select {
+  width: 100%;
+  padding: 9px 10px;
+  background: var(--sunken);
+  color: #fff;
+  border: 1px solid #39395b;
+  border-radius: 8px;
+  font: 13px/1.5 "Segoe UI", Arial, sans-serif;
+  resize: vertical;
+}
+
+select { resize: none; }
+select:disabled { opacity: .6; }
+
+/* Nền trắng chữ đen: ban nhap mang style inline color:#000000 de khop Outlook,
+   de nen toi thi chu den tren nen den khong doc duoc. Nen trang dong thoi cho
+   xem truoc dung nhu thu se hien thi that trong Outlook. */
+.draft {
+  width: 100%;
+  min-height: 150px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 10px 11px;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #39395b;
+  border-radius: 8px;
+}
+.draft:focus { outline: 2px solid #7c5cfc; outline-offset: -1px; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #aaaaca;
+  cursor: pointer;
+}
+
+button {
+  width: 100%;
+  margin-top: 9px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  font: 600 13px "Segoe UI", Arial, sans-serif;
+  cursor: pointer;
+  transition: opacity .15s, transform .05s;
+}
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .45; cursor: default; }
+.primary { background: var(--accent); color: #fff; }
+.ghost {
+  background: transparent;
+  color: #b9b9d6;
+  border: 1px solid var(--line);
+}
+.row { display: flex; gap: 8px; }
+.half { flex: 1; }
+
+.status, .notes {
+  margin-top: 11px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tools {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.tools summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b9b9d6;
+  margin-bottom: 8px;
+}
+.tools summary::marker { color: #7c5cfc; }
+
+.progress { margin-top: 10px; }
+.bar {
+  height: 6px;
+  background: var(--sunken);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width .3s ease;
+}
+.bar span.indeterminate {
+  width: 35%;
+  animation: slide 1.2s ease-in-out infinite;
+}
+@keyframes slide {
+  0%   { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+.status.info  { background: #12243a; color: #9dc9f0; }
+.status.error { background: #3a1220; color: #ffa8bf; }
+.status.done  { background: #102e28; color: #7fe0c4; }
+.notes { background: #2a2410; color: #e3cb92; }
+.notes ul { margin: 0; padding-left: 17px; }

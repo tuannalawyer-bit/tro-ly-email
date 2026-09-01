@@ -1,0 +1,13 @@
+pywebview==6.2.1
+pywin32>=306
+google-generativeai==0.8.6
+python-dotenv>=1.0.0
+# Lọc trắng danh sách HTML do Gemini sinh trước khi chèn vào form trả lời Outlook
+# (backend/ai_engine.py::_sanitize_html). Dùng parser "html.parser" nên không cần lxml.
+beautifulsoup4==4.15.0
+# Đọc bảng tính .xlsx đính kèm. Thuần Python (chỉ kéo theo et-xmlfile), không đòi Admin.
+# Cố ý KHÔNG dùng python-docx cho .docx: nó phụ thuộc lxml (C extension), dễ hỏng khi
+# cài sau proxy công ty. backend/attachment_reader.py đọc .docx bằng stdlib zipfile.
+openpyxl>=3.1.5,<4
+# Sinh chứng chỉ tự ký cho add-in (tao_chung_chi_addin.py).
+cryptography>=45,<50

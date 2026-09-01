@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hướng Dẫn Sử Dụng — Trợ Lý Email AI v1.7.0</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f97316;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: #111827;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 2.2rem;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 12px;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2 {
+            color: #60a5fa;
+            font-size: 1.5rem;
+            margin-top: 36px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-top: 24px;
+        }
+
+        p, li {
+            color: #cbd5e1;
+            font-size: 1rem;
+        }
+
+        .alert-box {
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .alert-title {
+            font-weight: bold;
+            color: #818cf8;
+            margin-bottom: 4px;
+        }
+
+        /* Mock UI Container */
+        .ui-mockup {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 24px 0;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .ui-header {
+            background: #1e293b;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #334155;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+
+        .ui-title {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .ui-body {
+            display: grid;
+            grid-template-columns: 220px 340px 1fr;
+            min-height: 480px;
+            background: #090d16;
+        }
+
+        /* Sidebar */
+        .ui-sidebar {
+            background: #0f172a;
+            border-right: 1px solid #1e293b;
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .folder-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .folder-item.active {
+            background: rgba(99, 102, 241, 0.15);
+            color: #6366f1;
+            font-weight: 600;
+        }
+
+        .badge {
+            background: #8b5cf6;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        /* Email List */
+        .ui-list {
+            border-right: 1px solid #1e293b;
+            background: #111827;
+            overflow-y: auto;
+        }
+
+        .list-search {
+            padding: 12px;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .search-input {
+            width: 90%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 6px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #1e293b;
+            overflow-x: auto;
+        }
+
+        .chip {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            background: #1e293b;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+
+        .chip.active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .email-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1f2937;
+            cursor: pointer;
+        }
+
+        .email-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 3px solid var(--primary);
+        }
+
+        .email-sender {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .email-subject {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin: 4px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tag-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .tag-purple { background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid #a855f7; }
+        .tag-orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid #f97316; }
+        .tag-gray { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid #6b7280; }
+
+        /* Detail View */
+        .ui-detail {
+            padding: 20px;
+            background: #0f172a;
+            position: relative;
+        }
+
+        .detail-header {
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+        }
+
+        .detail-subject {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .detail-meta {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 6px;
+        }
+
+        .detail-body {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            background: #182234;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #243147;
+        }
+
+        /* Sliding AI Drawer */
+        .ai-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            box-shadow: -10px 0 25px rgba(0,0,0,0.5);
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .drawer-title {
+            font-weight: bold;
+            color: #818cf8;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .prompt-area {
+            width: 90%;
+            height: 80px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+
+        .btn-action {
+            width: 100%;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-action:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-success {
+            background: var(--accent-green);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: #1e293b;
+            color: #60a5fa;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        code {
+            background: #1e293b;
+            color: #f472b6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ HƯỚNG DẪN SỬ DỤNG — TRỢ LÝ EMAIL AI (v1.7.0)</h1>
+
+        <div class="alert-box">
+            <div class="alert-title">📌 Giới thiệu hệ thống</div>
+            <p style="margin:0;">Hệ thống Trợ lý Email AI tích hợp sâu với Microsoft Outlook dành riêng cho khối Kiểm soát tuân thủ (KSTT) & An ninh An toàn (ANAT). Tự động phân loại email, tóm tắt nội dung và soạn thảo thư chuẩn văn phong công ty dựa trên kho quy tắc tri thức <code>kien_thuc/loai_thu/</code>.</p>
+        </div>
+
+        <h2>1. Giao diện thực tế Ứng dụng Desktop</h2>
+        <p>Ứng dụng Desktop cho phép quản lý hộp thư tập trung, hiển thị trực quan các danh mục email và phân loại thông minh bằng Gemini AI.</p>
+
+        <!-- REAL MOCKUP OF APP INTERFACE -->
+        <div class="ui-mockup">
+            <div class="ui-header">
+                <div class="window-controls">
+                    <span class="dot dot-red"></span>
+                    <span class="dot dot-yellow"></span>
+                    <span class="dot dot-green"></span>
+                </div>
+                <span class="ui-title">Trợ lý Email — WinCommerce KSTT</span>
+                <span style="font-size: 0.8rem; color: #10b981;">● Online (Outlook Connected)</span>
+            </div>
+            <div class="ui-body">
+                <!-- Sidebar -->
+                <div class="ui-sidebar">
+                    <div style="font-weight: bold; color: #fff; margin-bottom: 16px;">✨ Trợ lý Email</div>
+                    <div class="folder-item active">
+                        <span>📥 Hộp thư đến</span>
+                        <span class="badge">5</span>
+                    </div>
+                    <div class="folder-item">📤 Thư đã gửi</div>
+                    <div class="folder-item">📝 Thư nháp</div>
+                    <div class="folder-item">📦 Lưu trữ KSTT</div>
+                    <div style="margin-top: auto; font-size: 0.8rem; color: #10b981;">
+                        ⚙️ Cài đặt & Văn phong
+                    </div>
+                </div>
+
+                <!-- Email List -->
+                <div class="ui-list">
+                    <div class="list-search">
+                        <input type="text" class="search-input" value="Rà soát vi phạm" readonly>
+                    </div>
+                    <div class="filter-chips">
+                        <span class="chip active">Tất cả</span>
+                        <span class="chip">Cần trả lời</span>
+                        <span class="chip">Việc cần làm</span>
+                    </div>
+                    <div class="email-item active">
+                        <div class="email-sender">Hoàng Dương Dũng (KSTT-MB)</div>
+                        <div class="email-subject">FW: Thẩm định pháp lý CCSH CH 848 Trương Định</div>
+                        <span class="tag-badge tag-purple">● Cần trả lời</span>
+                    </div>
+                    <div class="email-item">
+                        <div class="email-sender">Phạm Thị Hiền Trang (WinRural)</div>
+                        <div class="email-subject">RE: Trình phê duyệt XLVP tuần 04 tháng 1</div>
+                        <span class="tag-badge tag-orange">● Việc cần làm</span>
+                    </div>
+                    <div class="email-item">
+                        <div class="email-sender">Kim Ngọc Hải (ANCS)</div>
+                        <div class="email-subject">BC xác minh gian lận đơn ảo WM Times City</div>
+                        <span class="tag-badge tag-purple">● Cần trả lời</span>
+                    </div>
+                    <div class="email-item">
+                        <div class="email-sender">Helpdesk CrownX</div>
+                        <div class="email-subject">Phân quyền VPN & Police Management</div>
+                        <span class="tag-badge tag-gray">● Chỉ để biết</span>
+                    </div>
+                </div>
+
+                <!-- Email Detail View -->
+                <div class="ui-detail">
+                    <div class="detail-header">
+                        <div class="detail-subject">FW: Thẩm định pháp lý CCSH: WM+ HNI 848 Trương Định, Hà Nội</div>
+                        <div class="detail-meta">Từ: dunghd@winmart.masangroup.com | Đã gửi: 20/03/2024 15:08</div>
+                    </div>
+                    <div class="detail-body">
+                        Anh Tuấn làm rõ trách nhiệm trường hợp này nhé.<br><br>
+                        <i>Nội dung gốc: Theo trao đổi, BCT không đồng ý ký thỏa thuận chuyển giao mà đề nghị ký BBTL + HĐ mới, đồng thời đề nghị WCM thu hồi tiền cọc...</i>
+                    </div>
+
+                    <!-- AI Drawer Overlay -->
+                    <div class="ai-drawer">
+                        <div class="drawer-title">
+                            <span>✨ Trợ lý AI Soạn thảo</span>
+                            <span style="cursor:pointer; color:#94a3b8;">✖</span>
+                        </div>
+                        <label style="font-size: 0.8rem; color: #cbd5e1;">Chỉ dẫn cho AI:</label>
+                        <textarea class="prompt-area" readonly>Gửi báo cáo thẩm định sự vụ chậm trễ pháp lý 848 Trương Định. Nêu rõ nguyên nhân do chủ nhà cũ không hợp tác, không ghi nhận lỗi cho TKMB.</textarea>
+                        
+                        <div style="font-size: 0.75rem; color: #10b981; margin-bottom: 8px;">
+                            ✔ Đã nạp quy tắc: <b>tham-dinh-mat-bang.md</b>
+                        </div>
+                        
+                        <button class="btn-action">Tạo nháp với AI</button>
+                        
+                        <div style="margin-top: 12px;">
+                            <button class="btn-action btn-success">Lưu vào Thư nháp Outlook</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2>2. Quy trình Soạn thư trả lời bằng AI</h2>
+        <ol>
+            <li><b>Mở email cần phản hồi:</b> Bấm chọn email trong danh sách.</li>
+            <li><b>Bấm ✨ Trả lời bằng AI:</b> Bảng trợ lý AI trượt ra từ bên phải màn hình.</li>
+            <li><b>Nhập chỉ dẫn công việc:</b> Nhập tóm tắt ý chính cần trả lời (ví dụ: <i>"Báo cáo thẩm định sự vụ, kiểm tra định vị quy hoạch Guland và giá thuê khu vực"</i>).</li>
+            <li><b>Bấm Tạo nháp:</b> AI tự động tra cứu ngữ cảnh hội thoại, quy trình KSTT và tệp hướng dẫn loại thư tương ứng trong <code>kien_thuc/loai_thu/</code>.</li>
+            <li><b>Lưu vào Thư nháp Outlook:</b> Nhấn nút <b>Lưu vào Thư nháp Outlook</b> để chuyển bản thảo vào cửa sở trả lời Outlook giữ nguyên định dạng chữ ký.</li>
+        </ol>
+
+        <h2>3. Tích hợp Outlook Add-in (Task Pane)</h2>
+        <p>Trên cửa sổ Microsoft Outlook Desktop chính, add-in hiển thị dưới dạng Task Pane bên phải:</p>
+        <ul>
+            <li><b>Tự động khớp chủ đề:</b> Khớp từ khoá chủ đề email để nạp đúng hướng dẫn xử lý (ví dụ: <code>xu-ly-vi-pham.md</code>, <code>xac-minh-gian-lan.md</code>).</li>
+            <li><b>Đọc tệp đính kèm:</b> Tự động đọc dữ liệu từ các file đính kèm <code>.xlsx</code>, <code>.pdf</code>, <code>.docx</code> mà không cần tải thủ công.</li>
+            <li><b>Chèn trực tiếp 1-click:</b> Chèn bản thảo đã tạo thẳng vào cửa sổ soạn thảo Outlook.</li>
+        </ul>
+
+        <h2>4. Thống kê Học văn phong (`xuat_thu/`)</h2>
+        <p>Kết quả đếm chính xác dựa trên kho <b>1,040 thư đã gửi</b> của người dùng:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Hạng mục</th>
+                    <th>Nội dung / Mẫu phổ biến nhất</th>
+                    <th>Tần suất / Số lần</th>
+                    <th>Tỷ lệ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>Câu chào</b></td>
+                    <td><code>Dear CH,</code></td>
+                    <td>159 lần</td>
+                    <td>15%</td>
+                </tr>
+                <tr>
+                    <td><b>Câu chào TBP</b></td>
+                    <td><code>Kính gửi Dũng TBP,</code></td>
+                    <td>25 lần</td>
+                    <td>2%</td>
+                </tr>
+                <tr>
+                    <td><b>Câu kết</b></td>
+                    <td><code>Trân trọng,</code></td>
+                    <td>747 lần</td>
+                    <td>72%</td>
+                </tr>
+                <tr>
+                    <td><b>Chữ ký</b></td>
+                    <td><code>Nguyễn Anh Tuấn (Mr.) – Phòng KSTT | Contact: 0986969759</code></td>
+                    <td>579 thư</td>
+                    <td>56%</td>
+                </tr>
+                <tr>
+                    <td><b>Độ dài trung bình</b></td>
+                    <td>85 từ / thư, 8 câu / thư, 10 từ / câu</td>
+                    <td>Chính xác tuyệt đối</td>
+                    <td>100%</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>5. Hướng dẫn Lệnh khởi chạy & Xử lý sự cố</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Tệp Lệnh (`.bat`)</th>
+                    <th>Chức năng</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>CHAY_UNGDUNG.bat</code></td>
+                    <td>Khởi chạy Ứng dụng Desktop Trợ lý Email AI (giao diện PyWebView)</td>
+                </tr>
+                <tr>
+                    <td><code>CHAY_ADDIN_BACKEND.bat</code></td>
+                    <td>Khởi chạy Backend dịch vụ HTTPS hỗ trợ Outlook Add-in Task Pane (Cổng 8765)</td>
+                </tr>
+                <tr>
+                    <td><code>XUAT_THU.bat</code></td>
+                    <td>Quét toàn bộ hộp thư Outlook và xuất dữ liệu phân tích văn phong ra <code>xuat_thu/</code></td>
+                </tr>
+                <tr>
+                    <td><code>CHAY_KEM_DEBUG.bat</code></td>
+                    <td>Bật ứng dụng ở chế độ Debug để kiểm tra log chi tiết</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

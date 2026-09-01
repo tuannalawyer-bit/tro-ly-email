@@ -1,0 +1,4 @@
+# Phụ thuộc CHỈ dùng lúc đóng gói, không cần khi chạy ứng dụng.
+# Cài: uv pip install --native-tls -r requirements-build.txt
+#      (cờ --native-tls là bắt buộc nếu máy nằm sau proxy công ty giải mã TLS)
+pyinstaller>=6.21,<7
