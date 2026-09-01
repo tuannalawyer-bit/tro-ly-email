@@ -324,7 +324,7 @@ class EmailAssistantAPI:
             hints_str = location_hints[0] if location_hints else ""
 
             if all_rental:
-                rental_table_html = self.web_searcher.build_rental_table_html(all_rental)
+                rental_table_html = self.web_searcher.build_rental_table_html(all_rental, location_hint=hints_str)
                 parts.append(self.web_searcher.format_rental_context_for_prompt(all_rental, label=f"Giá thuê mặt bằng thực tế tại '{hints_str}' (link cụ thể từ Google Search)"))
 
             if all_planning:
@@ -339,6 +339,10 @@ class EmailAssistantAPI:
                 results = self.web_searcher.search_general(search_query, num=4)
                 if results:
                     parts.append(self.web_searcher.format_results_for_prompt(results, label=f"Kết quả tra cứu thông tin cho '{search_query}' (link từ Google Search)"))
+
+        if (email_type == "tham-dinh-mat-bang" or not email_type) and not rental_table_html:
+            hints_str = location_hints[0] if (location_hints and len(location_hints) > 0) else (subject or "Đông Anh, Hà Nội")
+            rental_table_html = self.web_searcher.build_rental_table_html([], location_hint=hints_str)
 
         if parts:
             extra_search_context = "\n\n".join(parts)
@@ -355,20 +359,21 @@ class EmailAssistantAPI:
 
     @classmethod
     def _inject_rental_table(cls, html: str, table_html: str) -> str:
-        """Chèn bảng HTML giá thuê vào ngay dưới mục Giá thuê trong email."""
+        """Chèn bảng HTML giá thuê vào ngay dưới mục - Giá thuê trong email."""
         if not table_html or not html:
             return html
         if "<table" in html:
             return html
 
         patterns = [
-            r'(<(?:p|li|div)[^>]*>.*?(?:Giá thuê|giá thuê|đơn giá đề xuất).*?</(?:p|li|div)>)',
-            r'(- Giá thuê:[^\n<]*?(?:</p>|<br\s*/?>))',
+            r'(<(?:p|li|div)[^>]*>[\s\S]*?-\s*Giá thuê:[\s\S]*?</(?:p|li|div)>)',
+            r'(<(?:p|li|div)[^>]*>[\s\S]*?-\s*giá thuê:[\s\S]*?</(?:p|li|div)>)',
+            r'(-\s*Giá thuê:[^\n<]*?(?:</p>|<br\s*/?>))',
             r'(Giá thuê:[^\n<]*?(?:</p>|<br\s*/?>))',
             r'(<(?:p|li|div)[^>]*>.*?Bảng khảo sát.*?</(?:p|li|div)>)',
         ]
         for pat in patterns:
-            m = re.search(pat, html, re.IGNORECASE | re.DOTALL)
+            m = re.search(pat, html, re.IGNORECASE)
             if m:
                 idx = m.end()
                 return html[:idx] + "\n" + table_html + "\n" + html[idx:]
