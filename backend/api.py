@@ -355,36 +355,36 @@ class EmailAssistantAPI:
 
     @classmethod
     def _inject_rental_table(cls, html: str, table_html: str) -> str:
-        """Chèn bảng HTML giá thuê vào vị trí chuẩn nhất trong email do Gemini sinh ra."""
+        """Chèn bảng HTML giá thuê vào ngay dưới mục Giá thuê trong email."""
         if not table_html or not html:
             return html
         if "<table" in html:
             return html
 
         patterns = [
-            r'(<p[^>]*>.*?Bảng khảo sát giá thuê.*?</p>)',
-            r'(<p[^>]*>.*?khảo sát giá thuê.*?</p>)',
-            r'(<p[^>]*>.*?giá thuê thị trường.*?</p>)',
-            r'(<li[^>]*>.*?khảo sát giá thuê.*?</li>)',
-            r'(<li[^>]*>.*?giá thuê thị trường.*?</li>)',
-            r'(<p[^>]*>.*?Giá thuê đề xuất.*?</p>)',
-            r'(<li[^>]*>.*?Giá thuê đề xuất.*?</li>)',
-            r'(<h\d[^>]*>.*?Khảo sát.*?giá thuê.*?</h\d>)',
-            r'(<h\d[^>]*>.*?Giá thuê.*?</h\d>)',
-            r'(<p[^>]*>.*?<strong>.*?giá thuê.*?</strong>.*?</p>)',
+            r'(<(?:p|li|div)[^>]*>.*?(?:Giá thuê|giá thuê|đơn giá đề xuất).*?</(?:p|li|div)>)',
+            r'(- Giá thuê:[^\n<]*?(?:</p>|<br\s*/?>))',
+            r'(Giá thuê:[^\n<]*?(?:</p>|<br\s*/?>))',
+            r'(<(?:p|li|div)[^>]*>.*?Bảng khảo sát.*?</(?:p|li|div)>)',
         ]
         for pat in patterns:
             m = re.search(pat, html, re.IGNORECASE | re.DOTALL)
             if m:
                 idx = m.end()
-                return html[:idx] + table_html + html[idx:]
+                return html[:idx] + "\n" + table_html + "\n" + html[idx:]
 
-        m_any_p = list(re.finditer(r'</p>', html, re.IGNORECASE))
-        if len(m_any_p) >= 2:
-            idx = m_any_p[1].end()
+        # Nếu không khớp mẫu trên, chèn trước mục Diễn giải tiến trình hoặc Đánh giá
+        m_next = re.search(r'(<(?:p|li|div)[^>]*>.*?(?:Diễn giải tiến trình|Đánh giá &amp; Trách nhiệm|Đánh giá & Trách nhiệm))', html, re.IGNORECASE)
+        if m_next:
+            idx = m_next.start()
+            return html[:idx] + table_html + "\n" + html[idx:]
+
+        # Chèn trước thẻ đóng div cuối cùng
+        if html.rstrip().endswith("</div>"):
+            idx = html.rfind("</div>")
             return html[:idx] + table_html + html[idx:]
 
-        return table_html + html
+        return html + "\n" + table_html
 
     @classmethod
     def _inject_planning_links(cls, html: str, lat: float, lng: float) -> str:

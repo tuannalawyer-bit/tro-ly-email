@@ -11,10 +11,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-def _do_serper_search(query: str, api_key: str, num: int = 10) -> List[Dict[str, Any]]:
-    """Gọi API Serper.dev để tìm kiếm kết quả Google Search."""
+def _do_serper_search(query: str, api_key: str, num: int = 10) -> Tuple[List[Dict[str, Any]], bool]:
+    """Gọi API Serper.dev để tìm kiếm kết quả Google Search. Trả về (results, auth_error)."""
     if not api_key:
-        return []
+        return [], False
     url = "https://google.serper.dev/search"
     headers = {
         "X-API-KEY": api_key,
@@ -30,7 +30,7 @@ def _do_serper_search(query: str, api_key: str, num: int = 10) -> List[Dict[str,
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             body = resp.read().decode("utf-8")
             res = json.loads(body)
             organic = res.get("organic", [])
@@ -45,15 +45,19 @@ def _do_serper_search(query: str, api_key: str, num: int = 10) -> List[Dict[str,
                         "link": link,
                         "snippet": snippet,
                     })
-            return results
+            return results, False
+    except urllib.error.HTTPError as exc:
+        is_auth = exc.code in (401, 403)
+        logger.warning("Lỗi tìm kiếm Serper cho '%s': %s", query, exc)
+        return [], is_auth
     except Exception as exc:
         logger.warning("Lỗi tìm kiếm Serper cho '%s': %s", query, exc)
-        return []
+        return [], False
 
-def _do_google_cse_search(query: str, api_key: str, cse_id: str, num: int = 10) -> List[Dict[str, Any]]:
-    """Gọi Google Custom Search JSON API."""
+def _do_google_cse_search(query: str, api_key: str, cse_id: str, num: int = 10) -> Tuple[List[Dict[str, Any]], bool]:
+    """Gọi Google Custom Search JSON API. Trả về (results, auth_error)."""
     if not api_key or not cse_id:
-        return []
+        return [], False
     params = urllib.parse.urlencode({
         "key": api_key,
         "cx": cse_id,
@@ -65,7 +69,7 @@ def _do_google_cse_search(query: str, api_key: str, cse_id: str, num: int = 10) 
     url = f"https://www.googleapis.com/customsearch/v1?{params}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "EmailAssistant/2.0"})
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             body = resp.read().decode("utf-8")
             res = json.loads(body)
             items = res.get("items", [])
@@ -80,10 +84,49 @@ def _do_google_cse_search(query: str, api_key: str, cse_id: str, num: int = 10) 
                         "link": link,
                         "snippet": snippet,
                     })
-            return results
+            return results, False
+    except urllib.error.HTTPError as exc:
+        is_auth = exc.code in (400, 401, 403)
+        logger.warning("Lỗi tìm kiếm Google CSE cho '%s': %s", query, exc)
+        return [], is_auth
     except Exception as exc:
         logger.warning("Lỗi tìm kiếm Google CSE cho '%s': %s", query, exc)
+        return [], False
+
+def _do_duckduckgo_search(query: str, num: int = 10) -> List[Dict[str, Any]]:
+    """Tìm kiếm qua DuckDuckGo HTML fallback khi không có/hết hạn API key Serper/Google."""
+    import urllib.parse
+    from bs4 import BeautifulSoup
+    params = urllib.parse.urlencode({"q": query, "kl": "vn-vi"})
+    url = f"https://html.duckduckgo.com/html/?{params}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            soup = BeautifulSoup(resp.read().decode("utf-8", errors="ignore"), "html.parser")
+            results = []
+            for r in soup.find_all("div", class_="result"):
+                title_a = r.find("a", class_="result__a")
+                if title_a:
+                    title = title_a.get_text(strip=True)
+                    link = title_a.get("href", "")
+                    m = re.search(r"uddg=([^&]+)", link)
+                    if m:
+                        link = urllib.parse.unquote(m.group(1))
+                    snippet = r.find("a", class_="result__snippet")
+                    snip_text = snippet.get_text(strip=True) if snippet else ""
+                    if link.startswith("http") and not _is_junk_link(link):
+                        results.append({"title": title, "link": link, "snippet": snip_text})
+                        if len(results) >= num:
+                            break
+            return results
+    except Exception as exc:
+        logger.debug("Lỗi tìm kiếm DDG fallback cho '%s': %s", query, exc)
         return []
+
 
 def _is_junk_link(url: str) -> bool:
     """Loại bỏ các link mạng xã hội, video, trang rác không có giá trị khảo sát."""
@@ -107,6 +150,7 @@ def _is_junk_link(url: str) -> bool:
     u = url.lower()
     return any(d in u for d in junk_domains)
 
+
 def _extract_address_components(location: str) -> Tuple[str, str, str, str]:
     """Tách địa chỉ thành (Đường/Phố, Phường/Xã, Quận/Huyện, Tỉnh/TP)."""
     parts = [p.strip() for p in location.split(",") if p.strip()]
@@ -124,12 +168,14 @@ def _extract_address_components(location: str) -> Tuple[str, str, str, str]:
         street, ward, district, province = parts[0], parts[1], parts[2], parts[3]
     return street, ward, district, province
 
+
 def _extract_broad_location(location: str) -> str:
     """Lấy phần địa danh rộng hơn (bỏ số nhà/ngõ hẹp)."""
     parts = [p.strip() for p in location.split(",") if p.strip()]
     if len(parts) > 1:
         return ", ".join(parts[1:])
     return location
+
 
 class WebSearcher:
     """Bộ máy tìm kiếm giá thuê, tin tức quy hoạch và thông tin dự án thực tế."""
@@ -141,18 +187,24 @@ class WebSearcher:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.serper_key or (self.google_cse_key and self.google_cse_id))
+        return True
 
     def _search(self, query: str, num: int = 10) -> List[Dict[str, Any]]:
-        if not self.enabled or not query.strip():
+        if not query.strip():
             return []
         if self.serper_key:
-            results = _do_serper_search(query, self.serper_key, num=num)
+            results, auth_err = _do_serper_search(query, self.serper_key, num=num)
+            if auth_err:
+                self.serper_key = ""  # Vô hiệu hóa ngay lập tức để không lặp lại lỗi 403
             if results:
                 return results
         if self.google_cse_key and self.google_cse_id:
-            return _do_google_cse_search(query, self.google_cse_key, self.google_cse_id, num=num)
-        return []
+            results, auth_err = _do_google_cse_search(query, self.google_cse_key, self.google_cse_id, num=num)
+            if auth_err:
+                self.google_cse_key = ""  # Vô hiệu hóa ngay lập tức để không lặp lại lỗi 400
+            if results:
+                return results
+        return _do_duckduckgo_search(query, num=num)
 
     def search_general(self, query: str, num: int = 5) -> List[Dict[str, Any]]:
         """Tìm kiếm thông tin tổng quát."""
