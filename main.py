@@ -177,6 +177,8 @@ def main() -> None:
     if tray_mode:
         from tray import TrayApp
         tray = TrayApp(window)
+        # Khởi động backend add-in ngay lập tức, không chờ sự kiện cửa sổ
+        tray.backend.start()
         # before_show chạy ĐỒNG BỘ trên GUI thread và window.native đã sẵn sàng, nên
         # NotifyIcon dùng luôn vòng lặp thông điệp của pywebview.
         window.events.before_show += tray.attach
