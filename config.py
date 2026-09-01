@@ -37,7 +37,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 #   gemini-3.1-flash-lite -> chạy được và nhanh (~0,7s/lượt).  <-- đang dùng
 # KHÔNG quay lại alias "-latest": nó luôn trỏ tới model mới nhất, tức là model có
 # hạn mức miễn phí thấp nhất. Muốn đổi thì sửa GEMINI_MODEL trong .env.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 # Định dạng cho thư nháp AI soạn. Outlook dựng HTML không khai báo font bằng font
 # mặc định của trình duyệt (thường là Times New Roman) trong khi chữ ký và phần trích

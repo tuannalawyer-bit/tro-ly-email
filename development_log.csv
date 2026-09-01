@@ -91,3 +91,4 @@
 "Nghiệm thu bản đóng gói 2.1.0","test_nangcap.py chạy thật đường nâng cấp 2.0.1 lên 2.1.0 (chỉ thay hàm hiện hộp thoại): bung đè đúng bản, manifest ngoài đĩa lên 2.1.0, hai lối tắt trỏ đúng exe vừa bung, cổng 8765 tự có người nghe sau 3 giây mà không phải bấm menu khay, Outlook tải được taskpane.html qua kho chứng chỉ hệ thống. Chạy lại toàn bộ 13 tệp kiểm thử: đạt hết","2.1.0","06-08-2026 15:07:47"
 Hoàn thiện bộ cài đặt tự động và sửa lỗi cấu hình,"Chuẩn hóa lưu khóa API kèm model gemini-3.1-flash-lite, cập nhật dong_goi.py gom trọn gói vào BanGiao, nghiệm thu cài đặt tự động 100%",2.1.1,01-09-2026 10:18:00
 Tự động nạp lại API key động từ .env,Thêm _get_engine và fallback nạp lại key trực tiếp trong _require_key khi .env thay đổi mà không cần khởi động lại app,2.1.1,01-09-2026 11:00:00
+Nâng cấp model Gemini sang 3.5 Flash Lite,Cập nhật cấu hình mặc định và toàn bộ hệ thống sang gemini-3.5-flash-lite để tăng tốc độ soạn thư thêm 38%,2.1.1,01-09-2026 11:55:00

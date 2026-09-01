@@ -117,7 +117,7 @@ def save_api_key(key: str) -> str:
     if key:
         set_key(str(ENV_FILE), "GEMINI_API_KEY", key)
         os.environ["GEMINI_API_KEY"] = key
-    set_key(str(ENV_FILE), "GEMINI_MODEL", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite"))
+    set_key(str(ENV_FILE), "GEMINI_MODEL", os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"))
     if not key:
         return "Chưa nhập khoá API — nhập sau trong phần Cài đặt."
     return "Đã lưu khoá API."

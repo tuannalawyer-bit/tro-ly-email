@@ -96,9 +96,7 @@ class BackendProcess:
             return sock.connect_ex((BACKEND_HOST, self.port)) == 0
 
     def is_running(self) -> bool:
-        if FROZEN:
-            return self._thread is not None and self._thread.is_alive()
-        return self._proc is not None and self._proc.poll() is None
+        return self._thread is not None and self._thread.is_alive()
 
     def start(self) -> str:
         """Trả thông báo lỗi cho người dùng; chuỗi rỗng nghĩa là đã khởi động."""
@@ -111,7 +109,7 @@ class BackendProcess:
             return "Thiếu chứng chỉ. Chạy lại phần thiết lập để sinh chứng chỉ."
 
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        return self._start_thread() if FROZEN else self._start_process()
+        return self._start_thread()
 
     def _start_thread(self) -> str:
         try:
@@ -271,16 +269,17 @@ class TrayApp:
         self._status_item = None
         self._toggle_item = None
         self._autostart_item = None
+        self._autostart_backend()
 
     # ------------------------------------------------------------- dựng menu
 
     def attach(self) -> None:
-        """Gọi từ window.events.before_show — chạy đồng bộ trên GUI thread."""
+        """Gọi từ window.events.before_show / loaded — chạy trên GUI thread."""
         try:
-            self._build()
+            if self._icon is None:
+                self._build()
         except Exception:
             logger.exception("Không dựng được icon khay; ứng dụng vẫn chạy bình thường")
-        self._autostart_backend()
 
     def _autostart_backend(self) -> None:
         """Bật backend ngay lúc khởi động thay vì bắt người dùng tự bấm trong menu.

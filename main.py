@@ -180,12 +180,13 @@ def main() -> None:
         # before_show chạy ĐỒNG BỘ trên GUI thread và window.native đã sẵn sàng, nên
         # NotifyIcon dùng luôn vòng lặp thông điệp của pywebview.
         window.events.before_show += tray.attach
+        window.events.loaded += tray.attach
         window.events.closing += tray.on_closing
 
     debug = os.getenv("DEBUG", "").strip() in ("1", "true", "True")
     logger.info("Khởi động ứng dụng (debug=%s, khay=%s)...", debug, tray_mode)
     try:
-        webview.start(debug=debug)
+        webview.start(tray.attach if tray else None, debug=debug)
     finally:
         if tray:
             tray.backend.stop()
