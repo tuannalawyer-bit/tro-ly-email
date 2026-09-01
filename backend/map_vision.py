@@ -74,12 +74,11 @@ def analyze_map_with_vision(api_key: str, model_name: str, img_bytes: bytes, lat
         return None
 
     try:
-        import google.generativeai as genai
+        import base64
+        import json
+        import urllib.request
 
-        genai.configure(api_key=api_key)
-        target_model = model_name if model_name else "gemini-3.1-flash-lite"
-        model = genai.GenerativeModel(target_model)
-
+        target_model = (model_name if model_name else "gemini-3.5-flash-lite").replace("models/", "")
         prompt = (
             f"Dưới đây là ảnh chụp màn hình bản đồ quy hoạch thực tế tại tọa độ GPS ({lat:.6f}, {lng:.6f}).\n"
             "Hãy quan sát kỹ hình ảnh và tóm tắt ngắn gọn các thông tin quy hoạch sau:\n"
@@ -90,15 +89,32 @@ def analyze_map_with_vision(api_key: str, model_name: str, img_bytes: bytes, lat
             "Nếu ảnh là trang xác thực hoặc không thấy rõ bản đồ, hãy ghi rõ không thể nhận diện qua ảnh."
         )
 
-        image_part = {
-            "mime_type": "image/png",
-            "data": img_bytes,
+        b64_data = base64.b64encode(img_bytes).decode("ascii")
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "image/png", "data": b64_data}}
+                ]
+            }],
+            "generationConfig": {"temperature": 0.2}
         }
 
-        response = model.generate_content([prompt, image_part])
-        text = (response.text or "").strip()
-        if text and "xác minh bảo mật" not in text.lower():
-            return text
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent"
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "x-goog-api-key": api_key
+        }
+
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                text = "".join(p.get("text", "") for p in parts).strip()
+                if text and "xác minh bảo mật" not in text.lower():
+                    return text
         return None
     except Exception as exc:
         logger.warning("Lỗi phân tích bản đồ bằng Gemini Vision: %s", exc)

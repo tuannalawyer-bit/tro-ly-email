@@ -5,8 +5,6 @@ import logging
 import re
 from typing import Dict, List, Optional
 
-import google.generativeai as genai
-
 logger = logging.getLogger(__name__)
 
 _FENCE_OPEN_RE = re.compile(r"^```[a-zA-Z]*\s*")
@@ -226,7 +224,7 @@ def _parse_json(raw: str):
 
 
 class AIEngine:
-    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest",
+    def __init__(self, api_key: str, model_name: str = "gemini-3.5-flash-lite",
                  font_family: str = "Calibri, 'Segoe UI', sans-serif",
                  font_size: str = "11pt", text_color: str = "#000000") -> None:
         self.api_key = (api_key or "").strip()
@@ -234,25 +232,15 @@ class AIEngine:
         self.font_family = font_family
         self.font_size = font_size
         self.text_color = text_color
-        self.model = None          # model sinh văn bản (temperature cao)
-        self.json_model = None     # model trả JSON (temperature thấp)
+        self.model = object()          # dummy flag để tương thích
+        self.json_model = {"json": True}
 
         if not self.api_key:
             logger.warning("Chưa có GEMINI_API_KEY — các tính năng AI sẽ bị tắt.")
-            return
-
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(
-            model_name, generation_config={"temperature": 0.7})
-        self.json_model = genai.GenerativeModel(
-            model_name,
-            generation_config={"temperature": 0.2,
-                               "response_mime_type": "application/json"},
-        )
 
     @property
     def is_ready(self) -> bool:
-        return self.model is not None
+        return bool(self.api_key)
 
     def _require_key(self) -> None:
         if not self.is_ready:
@@ -264,48 +252,88 @@ class AIEngine:
             k = os.getenv("GEMINI_API_KEY", "").strip()
             if k:
                 self.api_key = k
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel(
-                    self.model_name, generation_config={"temperature": 0.7})
-                self.json_model = genai.GenerativeModel(
-                    self.model_name,
-                    generation_config={"temperature": 0.2,
-                                       "response_mime_type": "application/json"},
-                )
         if not self.is_ready:
             raise AIEngineError("Chưa cấu hình API key Gemini. Mở Cài đặt để nhập khóa.")
 
-    def _generate(self, model, contents, timeout: int = 90) -> str:
-        """contents: chuỗi prompt, hoặc list [prompt, {mime_type, data}, ...] khi
-        cần gửi kèm tệp đính kèm dạng nhị phân (PDF/ảnh) cho Gemini đọc trực tiếp."""
+    def _call_gemini_api(self, contents, temperature: float = 0.7,
+                          response_mime_type: Optional[str] = None, timeout: int = 90) -> str:
+        import base64
+        import json
+        import urllib.error
+        import urllib.request
+
         self._require_key()
+        parts = []
+        if isinstance(contents, str):
+            parts.append({"text": contents})
+        elif isinstance(contents, list):
+            for item in contents:
+                if isinstance(item, str):
+                    parts.append({"text": item})
+                elif isinstance(item, dict):
+                    if "text" in item:
+                        parts.append({"text": item["text"]})
+                    elif "mime_type" in item and "data" in item:
+                        data = item["data"]
+                        if isinstance(data, bytes):
+                            data = base64.b64encode(data).decode("ascii")
+                        parts.append({
+                            "inline_data": {
+                                "mime_type": item["mime_type"],
+                                "data": data,
+                            }
+                        })
+
+        payload = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {
+                "temperature": temperature,
+            },
+        }
+        if response_mime_type:
+            payload["generationConfig"]["responseMimeType"] = response_mime_type
+
+        # Chuẩn hóa model: nếu có prefix "models/" thì giữ, không thì dùng thẳng
+        model_endpoint = self.model_name.replace("models/", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_endpoint}:generateContent"
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "x-goog-api-key": self.api_key,
+        }
+
         try:
-            resp = model.generate_content(contents, request_options={"timeout": timeout})
-        except Exception as e:
-            err_str = str(e)
-            if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                res_data = json.loads(resp.read().decode("utf-8"))
+                candidates = res_data.get("candidates", [])
+                if not candidates:
+                    raise AIEngineError("Gemini không trả về nội dung (có thể bị bộ lọc an toàn chặn).")
+                parts = candidates[0].get("content", {}).get("parts", [])
+                text = "".join(p.get("text", "") for p in parts)
+                if not text.strip():
+                    raise AIEngineError("Gemini trả về phản hồi rỗng.")
+                return text
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            err_str = f"HTTP {e.code}: {err_body}"
+            if e.code == 400 or "API_KEY_INVALID" in err_body or "API key not valid" in err_body:
                 raise AIEngineError(
                     "Khoá API Gemini không hợp lệ. Kiểm tra lại API Key trong ⚙️ Cài đặt."
                 ) from e
-            if "429" in err_str or "Quota exceeded" in err_str or "ResourceExhausted" in err_str:
-                # Ba loại 429 khác hẳn nhau, phải phân biệt vì cách xử lý ngược nhau:
-                #   "limit: 0"  -> model không có gói miễn phí cho key này, phải đổi model.
-                #   ...PerDay   -> đã hết hạn mức NGÀY. Chờ vài phút vô ích, phải đổi model
-                #                  hoặc chờ tới nửa đêm giờ Thái Bình Dương.
-                #   ...PerMinute-> gọi quá nhanh, chờ một chút là được.
-                # Google trả kèm retry_delay ~60s cho cả loại PerDay, nên TUYỆT ĐỐI
-                # không được dựa vào trường đó để đoán.
-                if "limit: 0" in err_str:
-                    raise AIEngineError(
-                        f"Model '{self.model_name}' không có hạn mức miễn phí cho API key này. "
-                        "Hãy đổi GEMINI_MODEL trong tệp .env sang model khác "
-                        "(ví dụ gemini-3.5-flash hoặc gemini-3.1-flash-lite)."
-                    ) from e
-
-                limit = _QUOTA_LIMIT_RE.search(err_str)
-                actual = _QUOTA_MODEL_RE.search(err_str)
+            if e.code == 401 or "ACCESS_TOKEN_TYPE_UNSUPPORTED" in err_body:
+                raise AIEngineError(
+                    "Khóa API Gemini chưa đúng hoặc đã hết hạn. "
+                    "Hãy mở Cài đặt (⚙️) hoặc sửa tệp .env để nhập khóa API Gemini từ https://aistudio.google.com/app/apikey"
+                ) from e
+            if e.code == 429 or "RESOURCE_EXHAUSTED" in err_body or "Quota exceeded" in err_body:
+                limit = _QUOTA_LIMIT_RE.search(err_body)
+                actual = _QUOTA_MODEL_RE.search(err_body)
                 shown = actual.group(1) if actual else self.model_name
-                if "PerDay" in err_str:
+                if "PerDay" in err_body:
                     raise AIEngineError(
                         f"Đã dùng hết hạn mức MIỄN PHÍ TRONG NGÀY của model '{shown}'"
                         + (f" ({limit.group(1)} lượt/ngày)" if limit else "")
@@ -318,24 +346,25 @@ class AIEngine:
                     f"Gọi Gemini quá nhanh (429, model '{shown}'). "
                     "Chờ khoảng 1 phút rồi thử lại."
                 ) from e
-            if "404" in err_str and ("not found" in err_str.lower()
-                                     or "no longer available" in err_str.lower()):
+            if e.code == 404 or "not found" in err_body.lower():
                 raise AIEngineError(
-                    f"Model '{self.model_name}' không khả dụng với API key này "
-                    "(Google thường gỡ model đời cũ khỏi các key mới tạo). Hãy đổi "
+                    f"Model '{self.model_name}' không khả dụng với API key này. Hãy đổi "
                     "GEMINI_MODEL trong tệp .env sang gemini-3.5-flash hoặc "
                     "gemini-3.1-flash-lite."
                 ) from e
-            if "401" in err_str or "ACCESS_TOKEN_TYPE_UNSUPPORTED" in err_str or "invalid authentication credentials" in err_str.lower():
-                raise AIEngineError(
-                    "Khóa API Gemini chưa đúng hoặc không hợp lệ (khóa Google AI Studio chuẩn bắt đầu bằng 'AIzaSy...'). "
-                    "Hãy mở Cài đặt (⚙️) hoặc sửa tệp .env để nhập khóa API Gemini từ https://aistudio.google.com/app/apikey"
-                ) from e
-            raise AIEngineError(f"Gọi Gemini thất bại: {e}") from e
-        text = getattr(resp, "text", None)
-        if not text:
-            raise AIEngineError("Gemini không trả về nội dung (có thể bị bộ lọc an toàn chặn).")
-        return text
+            raise AIEngineError(f"Gọi Gemini thất bại: {err_str}") from e
+        except Exception as e:
+            if isinstance(e, AIEngineError):
+                raise
+            raise AIEngineError(f"Lỗi kết nối tới máy chủ Gemini: {e}") from e
+
+    def _generate(self, model, contents, timeout: int = 90) -> str:
+        """contents: chuỗi prompt, hoặc list [prompt, {mime_type, data}, ...] khi
+        cần gửi kèm tệp đính kèm dạng nhị phân (PDF/ảnh) cho Gemini đọc trực tiếp."""
+        is_json = (model is self.json_model) or (isinstance(model, dict) and model.get("json"))
+        temp = 0.2 if is_json else 0.7
+        mime = "application/json" if is_json else None
+        return self._call_gemini_api(contents, temperature=temp, response_mime_type=mime, timeout=timeout)
 
     # Việc học văn phong ĐÃ CHUYỂN sang backend/style_stats.py (đếm bằng Python) và
     # kien_thuc/loai_thu/ (hướng dẫn do công cụ AI ngoài viết). Hai phương thức cũ
