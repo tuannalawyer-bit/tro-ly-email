@@ -80,9 +80,11 @@ def app_exe() -> str:
     return str(quiet if quiet.is_file() else exe)
 
 
-def app_args() -> str:
-    """Tham số kèm theo lối tắt. Bản đóng gói chạy thẳng, không cần trỏ tới main.py."""
-    return "" if FROZEN else f'"{_SRC_DIR / "main.py"}" --tray'
+def app_args(tray: bool = False) -> str:
+    """Tham số kèm theo lối tắt."""
+    if FROZEN:
+        return "--tray" if tray else ""
+    return f'"{_SRC_DIR / "main.py"}" --tray' if tray else f'"{_SRC_DIR / "main.py"}"'
 
 
 def app_workdir() -> Path:

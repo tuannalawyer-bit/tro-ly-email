@@ -190,9 +190,10 @@ class Shortcut:
     tắt thay vì khoá Run trong registry để người dùng nhìn thấy và tự xoá được.
     """
 
-    def __init__(self, folder: Path, label: str) -> None:
+    def __init__(self, folder: Path, label: str, args: Optional[str] = None) -> None:
         self.dir = Path(folder)
         self.label = label
+        self.args = args
         self.path = self.dir / SHORTCUT_NAME
 
     def enabled(self) -> bool:
@@ -205,7 +206,7 @@ class Shortcut:
             shell = win32com.client.Dispatch("WScript.Shell")
             link = shell.CreateShortCut(str(self.path))
             link.TargetPath = app_exe()
-            link.Arguments = app_args()
+            link.Arguments = self.args if self.args is not None else app_args()
             link.WorkingDirectory = str(app_workdir())
             link.IconLocation = str(WINDOW_ICON)
             link.Description = f"{APP_NAME} — chạy ngầm ở khay hệ thống"
@@ -245,11 +246,11 @@ def desktop_dir() -> Path:
 
 
 def AutoStart(startup_folder: Optional[Path] = None) -> Shortcut:
-    return Shortcut(startup_folder or startup_dir(), "khởi động cùng Windows")
+    return Shortcut(startup_folder or startup_dir(), "khởi động cùng Windows", args="--tray")
 
 
 def DesktopShortcut(folder: Optional[Path] = None) -> Shortcut:
-    return Shortcut(folder or desktop_dir(), "ngoài Desktop")
+    return Shortcut(folder or desktop_dir(), "ngoài Desktop", args="")
 
 
 # ------------------------------------------------------------------ icon khay
