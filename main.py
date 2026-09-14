@@ -201,7 +201,11 @@ def main() -> None:
     logger.info("Khởi động ứng dụng (debug=%s, start_hidden=%s)...", debug, start_hidden)
     try:
         webview.start(tray.attach, debug=debug)
+        logger.info("webview.start đã kết thúc bình thường.")
+    except Exception:
+        logger.exception("webview.start ném ngoại lệ")
     finally:
+        logger.info("Dọn dẹp và dừng tray backend...")
         tray.backend.stop()
         tray.dispose()
 

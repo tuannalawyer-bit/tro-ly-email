@@ -414,7 +414,11 @@ class TrayApp:
             self._icon.ShowBalloonTip(3000, APP_NAME, done, WinForms.ToolTipIcon.Info)
 
     def on_closing(self) -> bool:
-        """Nút X thu về khay thay vì thoát. Trả False để huỷ lệnh đóng."""
+        """Chặn đóng cửa sổ (nhấn X) — chỉ ẩn đi, muốn thoát phải chọn ở khay.
+
+        Trong pywebview, handler trả về False thì event.set() mới trả về True
+        (hủy đóng cửa sổ). Ngược lại trả về True/None thì cho phép đóng.
+        """
         if self.quitting:
             return True
         self.hide_window()
