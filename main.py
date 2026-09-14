@@ -1,7 +1,9 @@
+import sys
+sys.coinit_flags = 2  # Bắt buộc khởi tạo STA apartment cho COM và WinForms trên Windows
+
 import logging
 import logging.handlers
 import os
-import sys
 
 import webview  # LƯU Ý: gói pip tên "pywebview" nhưng module import là "webview"
 
@@ -45,18 +47,23 @@ def setup_logging() -> None:
 
 
 def claim_single_instance(mutex_name: str = MUTEX_NAME_GUI):
-    """Trả handle mutex, hoặc None nếu đã có bản khác đang chạy."""
+    """Trả handle mutex, hoặc None nếu đã có bản khác đang chạy.
+    
+    Dùng trực tiếp ctypes gọi Win32 kernel32 API để đảm bảo 100% tin cậy, không phụ thuộc
+    pywin32 DLL vốn có thể lỗi nạp động trong bản đóng gói.
+    """
     try:
-        import win32api
-        import win32event
-        import winerror
-        handle = win32event.CreateMutex(None, False, mutex_name)
-        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.CreateMutexW(None, False, mutex_name)
+        if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+            if handle:
+                kernel32.CloseHandle(handle)
             return None
         return handle
-    except ImportError:                 # thiếu pywin32 thì cứ chạy, đừng chặn người dùng
-        logger.warning("Không kiểm tra được bản đang chạy (thiếu pywin32).")
-        return True
+    except Exception:
+        logger.exception("Lỗi khi kiểm tra tiến trình đang chạy")
+        return None
 
 
 def bring_existing_to_front() -> bool:
@@ -191,8 +198,8 @@ def main() -> None:
     tray_lock = claim_single_instance(MUTEX_NAME_TRAY)
     if tray_lock is not None:
         try:
-            import win32api
-            win32api.CloseHandle(tray_lock)
+            import ctypes
+            ctypes.windll.kernel32.CloseHandle(tray_lock)
         except Exception:
             pass
         import subprocess
@@ -206,10 +213,7 @@ def main() -> None:
             main_py = str(os.path.abspath(__file__))
             subprocess.Popen([python, main_py, "--tray"], cwd=str(workdir))
     else:
-        # Khay đã chạy sẵn
-        from tray import BackendProcess
-        backend = BackendProcess()
-        backend.start()
+        logger.info("Tiến trình khay hệ thống đang chạy sẵn.")
 
     api = EmailAssistantAPI()
     window = webview.create_window(

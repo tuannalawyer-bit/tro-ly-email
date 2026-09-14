@@ -609,25 +609,20 @@ class StandaloneTrayApp:
             self._icon.Visible = False
             self._icon.Dispose()
             self._icon = None
-        WinForms.Application.ExitThread()
         WinForms.Application.Exit()
+
+
+_standalone_tray_instance = None
 
 
 def run_tray_standalone() -> None:
     """Vòng lặp thông điệp Windows thuần túy cho chế độ khay ngầm.
     
-    Chạy trong STA thread của .NET WinForms để tiếp nhận toàn bộ thông điệp của tray icon.
+    Chạy trực tiếp trên main thread (đã cấu hình STA qua sys.coinit_flags = 2).
+    Tuyệt đối không dùng thread phụ để tránh lỗi tham chiếu GC của pythonnet.
     """
-    app = None
-
-    def sta_main():
-        nonlocal app
-        app = StandaloneTrayApp()
-        WinForms.Application.Run()
-
-    thread = Thread(ThreadStart(sta_main))
-    thread.SetApartmentState(ApartmentState.STA)
-    thread.Start()
-    while thread.IsAlive:
-        thread.Join(500)
+    global _standalone_tray_instance
+    _standalone_tray_instance = StandaloneTrayApp()
+    logger.info("Bắt đầu WinForms.Application.Run trên main STA thread...")
+    WinForms.Application.Run()
 
