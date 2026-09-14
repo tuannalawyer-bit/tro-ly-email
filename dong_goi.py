@@ -121,6 +121,8 @@ def make_handoff(setup: Path) -> Path:
         shutil.copy2(ROOT / ".env", out / ".env")
     if (ROOT / "XUAT_THU.bat").is_file():
         shutil.copy2(ROOT / "XUAT_THU.bat", out / "XUAT_THU.bat")
+    if (ROOT / "TAT_CANH_BAO_OUTLOOK.bat").is_file():
+        shutil.copy2(ROOT / "TAT_CANH_BAO_OUTLOOK.bat", out / "TAT_CANH_BAO_OUTLOOK.bat")
 
     root_bg = ROOT / "BanGiao"
     if root_bg.exists():

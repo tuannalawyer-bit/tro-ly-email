@@ -106,7 +106,10 @@ class OutlookClient:
     def connect(self) -> bool:
         """Kết nối tới Outlook. KHÔNG gọi CoInitialize ở đây — com_worker đã lo."""
         try:
-            self.app = win32com.client.Dispatch("Outlook.Application")
+            try:
+                self.app = win32com.client.GetActiveObject("Outlook.Application")
+            except Exception:
+                self.app = win32com.client.Dispatch("Outlook.Application")
             self.namespace = self.app.GetNamespace("MAPI")
             self._default_ids = {}
             for kind, code in (("inbox", OL_FOLDER_INBOX),
@@ -692,11 +695,15 @@ class OutlookClient:
     def _resolve_sender_email(self, msg) -> str:
         """Xử lý địa chỉ Exchange (X500) và SMTP."""
         try:
-            sender = msg.Sender
-            if getattr(sender, "AddressEntryUserObjectType", None) in (0, 30):
+            addr = getattr(msg, "SenderEmailAddress", "") or ""
+            if addr and "@" in addr:
+                return addr
+            sender = getattr(msg, "Sender", None)
+            if sender and getattr(sender, "AddressEntryUserObjectType", None) in (0, 30):
                 exch = sender.GetExchangeUser()
                 if exch:
                     return exch.PrimarySmtpAddress
+            return addr
         except Exception:
             pass
         return getattr(msg, "SenderEmailAddress", "") or ""
