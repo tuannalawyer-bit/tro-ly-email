@@ -12,7 +12,8 @@ from config import APP_NAME
 from paths import FROZEN, LOG_DIR, RES_DIR
 # Local\ chứ không phải Global\: mỗi phiên đăng nhập được chạy bản riêng, và tạo đối
 # tượng trong Global\ đòi quyền SeCreateGlobalPrivilege mà tài khoản thường không có.
-MUTEX_NAME = "Local\\TroLyEmail_SingleInstance"
+MUTEX_NAME_TRAY = "Local\\TroLyEmail_Tray_Instance"
+MUTEX_NAME_GUI = "Local\\TroLyEmail_GUI_Instance"
 
 # Giữ tham chiếu suốt vòng đời tiến trình: PyHANDLE tự đóng khi bị thu gom, mất handle
 # là mất luôn mutex và cơ chế chống chạy trùng thành vô dụng.
@@ -43,17 +44,13 @@ def setup_logging() -> None:
     )
 
 
-def claim_single_instance():
-    """Trả handle mutex, hoặc None nếu đã có bản khác đang chạy.
-
-    Ứng dụng nền bắt buộc phải chống chạy trùng: mở hai lần sẽ ra hai icon khay,
-    hai tiến trình cùng tranh Outlook COM.
-    """
+def claim_single_instance(mutex_name: str = MUTEX_NAME_GUI):
+    """Trả handle mutex, hoặc None nếu đã có bản khác đang chạy."""
     try:
         import win32api
         import win32event
         import winerror
-        handle = win32event.CreateMutex(None, False, MUTEX_NAME)
+        handle = win32event.CreateMutex(None, False, mutex_name)
         if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
             return None
         return handle
@@ -169,13 +166,50 @@ def main() -> None:
         raise FileNotFoundError(f"Không tìm thấy giao diện tại: {frontend_path}")
 
     global _instance_lock
-    _instance_lock = claim_single_instance()
+
+    # Khởi động cùng Windows ở chế độ khay hệ thống (--tray):
+    # Chạy ngầm 100% bằng WinForms.ApplicationContext thuần túy, KHÔNG tạo bất kỳ cửa sổ nào.
+    # Tuyệt đối tránh tải pywebview / WebView2 / COM lúc khởi động máy để không bao giờ bị treo xám.
+    if "--tray" in sys.argv:
+        _instance_lock = claim_single_instance(MUTEX_NAME_TRAY)
+        if _instance_lock is None:
+            logger.info("Trợ lý Email (khay hệ thống) đã đang chạy sẵn.")
+            return
+
+        from tray import run_tray_standalone
+        logger.info("Khởi động Trợ lý Email ở chế độ khay hệ thống (chạy ngầm hoàn toàn)...")
+        run_tray_standalone()
+        return
+
+    # Chế độ mở cửa sổ giao diện chính (Desktop shortcut hoặc mở thủ công):
+    _instance_lock = claim_single_instance(MUTEX_NAME_GUI)
     if _instance_lock is None:
         warn_already_running()
         return
 
-    # Chỉ ẩn cửa sổ khi khởi động cùng Windows với tham số --tray
-    start_hidden = "--tray" in sys.argv
+    # Đảm bảo tiến trình khay hệ thống (--tray) chạy ngầm để phục vụ Outlook 24/7 và giữ icon khay
+    tray_lock = claim_single_instance(MUTEX_NAME_TRAY)
+    if tray_lock is not None:
+        try:
+            import win32api
+            win32api.CloseHandle(tray_lock)
+        except Exception:
+            pass
+        import subprocess
+        from paths import app_exe, app_workdir
+        exe = app_exe()
+        workdir = app_workdir()
+        if FROZEN:
+            subprocess.Popen([exe, "--tray"], cwd=str(workdir))
+        else:
+            python = sys.executable
+            main_py = str(os.path.abspath(__file__))
+            subprocess.Popen([python, main_py, "--tray"], cwd=str(workdir))
+    else:
+        # Khay đã chạy sẵn
+        from tray import BackendProcess
+        backend = BackendProcess()
+        backend.start()
 
     api = EmailAssistantAPI()
     window = webview.create_window(
@@ -186,28 +220,16 @@ def main() -> None:
         height=900,
         min_size=(1100, 700),
         background_color="#0a0a1a",
-        hidden=start_hidden,
+        hidden=False,
     )
 
-    from tray import TrayApp
-    tray = TrayApp(window)
-    # Khởi động backend add-in ngay lập tức
-    tray.backend.start()
-    window.events.before_show += tray.attach
-    window.events.loaded += tray.attach
-    window.events.closing += tray.on_closing
-
     debug = os.getenv("DEBUG", "").strip() in ("1", "true", "True")
-    logger.info("Khởi động ứng dụng (debug=%s, start_hidden=%s)...", debug, start_hidden)
+    logger.info("Khởi động cửa sổ giao diện chính (debug=%s)...", debug)
     try:
-        webview.start(tray.attach, debug=debug)
-        logger.info("webview.start đã kết thúc bình thường.")
+        webview.start(debug=debug)
+        logger.info("Cửa sổ giao diện đã đóng bình thường.")
     except Exception:
-        logger.exception("webview.start ném ngoại lệ")
-    finally:
-        logger.info("Dọn dẹp và dừng tray backend...")
-        tray.backend.stop()
-        tray.dispose()
+        logger.exception("Lỗi khi mở cửa sổ giao diện")
 
 
 if __name__ == "__main__":

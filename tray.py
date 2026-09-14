@@ -21,9 +21,11 @@ import clr  # noqa: F401  — pythonnet, phải import trước AddReference
 
 clr.AddReference("System.Windows.Forms")
 clr.AddReference("System.Drawing")
+clr.AddReference("System.Threading")
 
 import System.Windows.Forms as WinForms  # noqa: E402
 from System.Drawing import Bitmap, Font, FontStyle, Icon  # noqa: E402
+from System.Threading import ApartmentState, Thread, ThreadStart  # noqa: E402
 
 from config import APP_NAME  # noqa: E402
 from paths import (CERT_DIR, DATA_ROOT, FROZEN, LOG_DIR, RES_DIR,  # noqa: E402
@@ -435,3 +437,197 @@ class TrayApp:
             self._icon.Visible = False
             self._icon.Dispose()
             self._icon = None
+
+
+# ------------------------------------------------------------------ Chế độ khay chạy ngầm thuần túy (Standalone)
+
+class StandaloneTrayApp:
+    """Tiến trình khay hệ thống chạy ngầm độc lập khi khởi động cùng Windows (--tray).
+    
+    100% không dựng cửa sổ giao diện (pywebview/WebView2/COM) -> không tốn RAM và
+    KHÔNG BAO GIỜ bị treo xám (Not Responding) khi mở máy.
+    Khi người dùng bấm 'Mở Trợ lý Email' hoặc click đúp vào icon khay, sẽ gọi mở cửa sổ.
+    """
+
+    def __init__(self, backend: Optional[BackendProcess] = None,
+                 autostart: Optional[Shortcut] = None) -> None:
+        self.backend = backend or BackendProcess()
+        self.autostart = autostart or AutoStart()
+        self._icon: Optional[WinForms.NotifyIcon] = None
+        self._status_item = None
+        self._toggle_item = None
+        self._autostart_item = None
+        self._build()
+
+    def _build(self) -> None:
+        menu = WinForms.ContextMenuStrip()
+
+        open_item = self._item(menu, "Mở Trợ lý Email", lambda *_: self.open_gui())
+        open_item.Font = Font(open_item.Font, FontStyle.Bold)
+        menu.Items.Add(WinForms.ToolStripSeparator())
+
+        self._status_item = WinForms.ToolStripMenuItem("Backend add-in: …")
+        self._status_item.Enabled = False
+        menu.Items.Add(self._status_item)
+        self._toggle_item = self._item(menu, "Khởi động", lambda *_: self._toggle_backend())
+        self._item(menu, "Khởi động lại", lambda *_: self._notify(self.backend.restart()))
+
+        menu.Items.Add(WinForms.ToolStripSeparator())
+        self._item(menu, "Xuất thư đã gửi để phân tích", lambda *_: self._export())
+        self._item(menu, "Kiểm tra add-in", lambda *_: self._check_addin())
+        self._item(menu, "Mở thư mục dữ liệu", lambda *_: self._open_data_dir())
+
+        menu.Items.Add(WinForms.ToolStripSeparator())
+        self._autostart_item = self._item(menu, "Khởi động cùng Windows",
+                                          lambda *_: self._toggle_autostart())
+        self._item(menu, "Tạo lối tắt ngoài Desktop", lambda *_: self._make_desktop())
+        menu.Items.Add(WinForms.ToolStripSeparator())
+        self._item(menu, "Thoát", lambda *_: self.quit())
+
+        menu.Opening += lambda *_: self._refresh()
+
+        self._icon = WinForms.NotifyIcon()
+        self._icon.Text = APP_NAME
+        icon = load_icon(TRAY_ICON)
+        if icon:
+            self._icon.Icon = icon
+        self._icon.ContextMenuStrip = menu
+        self._icon.DoubleClick += lambda *_: self.open_gui()
+        self._icon.Visible = True
+
+        # Tự động khởi động backend add-in
+        self.backend.start()
+        logger.info("Đã khởi động Trợ lý Email ở khay hệ thống (chạy ngầm độc lập).")
+
+    @staticmethod
+    def _item(menu, text: str, handler: Callable):
+        item = WinForms.ToolStripMenuItem(text)
+        item.Click += handler
+        menu.Items.Add(item)
+        return item
+
+    def _refresh(self) -> None:
+        ours = self.backend.is_running()
+        running = ours or self.backend.is_port_busy()
+        self._status_item.Text = (
+            "Backend add-in: đang chạy" if ours else
+            "Backend add-in: đang chạy (do tiến trình khác)" if running else
+            "Backend add-in: đã dừng")
+        self._toggle_item.Text = "Dừng" if running else "Khởi động"
+        self._toggle_item.Enabled = ours or not running
+        self._autostart_item.Checked = self.autostart.enabled()
+
+    def open_gui(self) -> None:
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, APP_NAME)
+            if hwnd:
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                user32.SetForegroundWindow(hwnd)
+                return
+        except Exception:
+            pass
+
+        exe = app_exe()
+        workdir = app_workdir()
+        if FROZEN:
+            subprocess.Popen([exe], cwd=str(workdir))
+        else:
+            python = sys.executable
+            main_py = str(Path(__file__).resolve().parent / "main.py")
+            subprocess.Popen([python, main_py], cwd=str(workdir))
+
+    def _toggle_backend(self) -> None:
+        if self.backend.is_running():
+            self.backend.stop()
+            self._notify("", "Đã dừng backend add-in.")
+        else:
+            self._notify(self.backend.start(), "Đã khởi động backend add-in.")
+
+    def _toggle_autostart(self) -> None:
+        if self.autostart.enabled():
+            self._notify(self.autostart.disable(), "Đã tắt khởi động cùng Windows.")
+        else:
+            self._notify(self.autostart.enable(), "Đã bật khởi động cùng Windows.")
+
+    def _make_desktop(self) -> None:
+        self._notify(DesktopShortcut().enable(), "Đã tạo lối tắt ngoài Desktop.")
+
+    def _open_data_dir(self) -> None:
+        DATA_ROOT.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(DATA_ROOT))
+
+    def _export(self) -> None:
+        def work():
+            try:
+                from xuat_thu_da_gui import export
+                res = export(deep=False)
+                self._notify("", f"Đã xuất {res['unique']} thư vào {res['dir']}")
+            except Exception as e:
+                logger.exception("Xuất thư thất bại")
+                self._notify(f"Xuất thư thất bại: {e}")
+
+        self._notify("", "Đang xuất thư đã gửi, sẽ báo khi xong…")
+        threading.Thread(target=work, name="xuat-thu", daemon=True).start()
+
+    def _check_addin(self) -> None:
+        def work():
+            try:
+                import kiem_tra_addin
+                code = kiem_tra_addin.main()
+                self._notify("" if code == 0 else "Có mục chưa đạt, xem log để biết chi tiết.",
+                             "Kiểm tra add-in: mọi điều kiện bắt buộc đều đạt.")
+            except Exception as e:
+                logger.exception("Kiểm tra add-in thất bại")
+                self._notify(f"Kiểm tra thất bại: {e}")
+
+        threading.Thread(target=work, name="kiem-tra", daemon=True).start()
+
+    def _notify(self, error: str, done: str = "") -> None:
+        if not self._icon:
+            return
+        if error:
+            self._icon.ShowBalloonTip(6000, APP_NAME, error,
+                                      WinForms.ToolTipIcon.Warning)
+        elif done:
+            self._icon.ShowBalloonTip(3000, APP_NAME, done, WinForms.ToolTipIcon.Info)
+
+    def quit(self) -> None:
+        # Đóng cửa sổ GUI nếu đang mở
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hwnd = user32.FindWindowW(None, APP_NAME)
+            if hwnd:
+                user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+        except Exception:
+            pass
+
+        self.backend.stop()
+        if self._icon:
+            self._icon.Visible = False
+            self._icon.Dispose()
+            self._icon = None
+        WinForms.Application.ExitThread()
+        WinForms.Application.Exit()
+
+
+def run_tray_standalone() -> None:
+    """Vòng lặp thông điệp Windows thuần túy cho chế độ khay ngầm.
+    
+    Chạy trong STA thread của .NET WinForms để tiếp nhận toàn bộ thông điệp của tray icon.
+    """
+    app = None
+
+    def sta_main():
+        nonlocal app
+        app = StandaloneTrayApp()
+        WinForms.Application.Run()
+
+    thread = Thread(ThreadStart(sta_main))
+    thread.SetApartmentState(ApartmentState.STA)
+    thread.Start()
+    while thread.IsAlive:
+        thread.Join(500)
+
