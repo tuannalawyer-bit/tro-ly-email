@@ -267,63 +267,51 @@ async function insertReply(all = true) {
     return;
   }
 
-  // 2. Chế độ Read (đang đọc thư): Tự động mở cửa sổ Trả lời tất cả (Reply All)
-  setStatus('info', 'Đang mở cửa sổ Trả lời tất cả trong Outlook…');
+  // 2. Chế độ Read (đang đọc thư): Dùng Office.js mở form trả lời (100% không bị cảnh báo bảo mật COM)
+  setStatus('info', all ? 'Đang mở thư Trả lời tất cả…' : 'Đang mở thư Trả lời…');
+  const fnAsync = all ? 'displayReplyAllFormAsync' : 'displayReplyFormAsync';
+  const fnSync = all ? 'displayReplyAllForm' : 'displayReplyForm';
 
-  // Ưu tiên 1: Gọi backend COM để mở cửa sổ Reply All trực tiếp trong Outlook Desktop
-  try {
-    const res = await call('/api/open-reply-all', {
-      html_body: html,
-      subject: (currentEmail && currentEmail.subject) || (item ? item.subject : ''),
-      sender_email: (currentEmail && currentEmail.sender_email) || '',
-    });
-    if (res && res.success) {
-      setStatus('done', 'Đã tự động mở cửa sổ Trả lời tất cả trong Outlook. Kiểm tra lại rồi bấm Gửi.');
+  // Tự động sao chép sẵn vào clipboard để người dùng có thể Ctrl+V ngay nếu cần
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(html).catch(() => {});
+  }
+
+  if (typeof item[fnAsync] === 'function') {
+    try {
+      item[fnAsync]({ htmlBody: html }, r => {
+        if (r && r.status === Office.AsyncResultStatus.Succeeded) {
+          setStatus('done', 'Đã tự động mở thư trả lời trong Outlook. Kiểm tra lại rồi bấm Gửi.');
+        } else {
+          tryOfficeJsSync();
+        }
+      });
+      return;
+    } catch (_) {
+      tryOfficeJsSync();
       return;
     }
-  } catch (e) {
-    console.warn("Backend COM open-reply-all failed, fallback to Office JS:", e);
   }
 
-  // Fallback 2: Sử dụng Office JS displayReplyAllForm
-  if (item) {
-    const fn = all !== false ? 'displayReplyAllForm' : 'displayReplyForm';
-    const fnAsync = fn + 'Async';
-    try {
-      if (typeof item[fnAsync] === 'function' && Office.context.requirements && Office.context.requirements.isSetSupported('Mailbox', '1.9')) {
-        item[fnAsync]({ htmlBody: html }, r => {
-          if (r && r.status === Office.AsyncResultStatus.Succeeded) {
-            setStatus('done', 'Đã tự động mở thư nháp trả lời tất cả trong Outlook. Kiểm tra lại rồi bấm Gửi.');
-          } else {
-            tryOfficeJsSync();
-          }
-        });
-        return;
-      }
-    } catch (_) {}
-    tryOfficeJsSync();
-  } else {
-    setStatus('done', 'Đã tạo bản nháp thành công bên dưới.');
-  }
+  tryOfficeJsSync();
 
   function tryOfficeJsSync() {
     try {
-      const fn = all !== false ? 'displayReplyAllForm' : 'displayReplyForm';
-      if (item && typeof item[fn] === 'function') {
+      if (typeof item[fnSync] === 'function') {
         try {
-          item[fn](html);
-          setStatus('done', 'Đã tự động mở thư nháp trả lời tất cả trong Outlook. Kiểm tra lại rồi bấm Gửi.');
+          item[fnSync]({ htmlBody: html });
+          setStatus('done', 'Đã tự động mở thư trả lời trong Outlook. Kiểm tra lại rồi bấm Gửi.');
           return;
         } catch (_) {
-          item[fn]({ htmlBody: html });
-          setStatus('done', 'Đã tự động mở thư nháp trả lời tất cả trong Outlook. Kiểm tra lại rồi bấm Gửi.');
+          item[fnSync](html);
+          setStatus('done', 'Đã tự động mở thư trả lời trong Outlook. Kiểm tra lại rồi bấm Gửi.');
           return;
         }
       }
     } catch (e) {
-      console.warn("Office JS displayReplyForm error:", e);
+      console.warn("Office.js displayReplyForm error:", e);
     }
-    setStatus('done', 'Đã tạo bản nháp thành công bên dưới.');
+    setStatus('done', 'Đã sao chép bản nháp vào bộ nhớ tạm. Bấm Reply trên thanh công cụ Outlook rồi dán (Ctrl+V).');
   }
 }
 
